@@ -172,12 +172,12 @@ if __name__ == '__main__':
     parser.add_argument('--temperature', type=float, default=0.9, help="Temperature for gumbel softmax")
     parser.add_argument('--straight_through', type=bool, default=False, help="Straight through estimator for gumbel softmax")
 
-    parser.add_argument('--savedir', type=str, default="./saved_models/ptb_residual_vqvae_nonoverlap_16_4/")
+    parser.add_argument('--savedir', type=str, default="./saved_models/ptb_residual_vqvae_nonoverlap_16_8/")
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--n_epochs', type=int, default=301)
     parser.add_argument('--mode', type=str, default='train', choices=['test', 'train'])
-    parser.add_argument('--num_quantizers', type=int, default=4)
+    parser.add_argument('--num_quantizers', type=int, default=8)
     
 
     #test
