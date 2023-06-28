@@ -190,10 +190,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser() 
     #Model Configuration
     parser.add_argument('--classification_model', type=str, default="/home/hschung/saved_models/timeseries/ptb_cnn/classification_870.pt")
-    parser.add_argument('--vqvae_model', default = "./vqvae_models/ptb_residual_vqvae_nonoverlap_16_2/model_300.pt")  
+    parser.add_argument('--vqvae_model', default = "./vqvae_models/ptb_residual_vqvae_nonoverlap_16_8/model_300.pt")  
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--lr', type=float, default=2e-4)
-    parser.add_argument('--n_epochs', type=int, default=3000)
+    parser.add_argument('--n_epochs', type=int, default=1000)
     parser.add_argument('--n_emb', type=int, default=64)
     parser.add_argument('--mode', type=str, default='train', choices=['test', 'train'])
     parser.add_argument('--task', type=str, default='classification', help="Task being done")
@@ -203,10 +203,9 @@ if __name__ == '__main__':
     parser.add_argument('--num_classes', type=int, default=2)
     parser.add_argument('--positions', type=int, default=0)
     parser.add_argument('--mask', type=int, default=0)
-    parser.add_argument('--num_quantizers', type=int, default=2)
     
     #directories 
-    parser.add_argument('--savedir', type=str, default="./classification_models/ptb_conv_nonoverlap/")
+    parser.add_argument('--savedir', type=str, default="./classification_models/ptb_conv_nonoverlap_128_8/")
 
     args = parser.parse_args()
     
