@@ -8,6 +8,8 @@ pip install vector-quantize-pytorch
 pip install pandas
 pip install matplotlib
 pip install wandb
+pip install scikit-learn
+pip install scikit-plot
 ```
 use vqvae.py for training and testing 
 use --num_quantizers to change number of vq-vae quantizers (1 == vq-vae, greater than 2 == residual vq)
