@@ -22,11 +22,12 @@ class VQTrainer():
          #directory 
         self.savedir = self.args.savedir
         self.dataset = self.args.dataset
+        self.task = self.args.task
         directory = os.path.join(self.savedir)
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        ds = load_data(args.dataset)
+        ds = load_data(self.dataset, self.task)
 
         # Split the dataset into training, validation, and test sets
         train_size = int(0.8 * len(ds))
@@ -154,7 +155,7 @@ class VQTrainer():
                 plt.clf()
         
         test_res_recon_error.append(test_epoch_mse/len(self.test_loader))
-        print(f'\ttest_loss: {test_res_recon_error[-1]:.6f}')
+        print(f'\ttest_loss: {test_res_recon_error[-1]:.10f}')
         
             
 
@@ -162,7 +163,8 @@ class VQTrainer():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser() 
     #Model Configuration
-    parser.add_argument('--dataset', type=str, default='ptb', help="Dataset to train on")
+    parser.add_argument('--task', type=str, default='vqvae', help="Task being done")
+    parser.add_argument('--dataset', type=str, default='flat', help="Dataset to train on")
     parser.add_argument('--ecg_size', type=int, default=208, help="Number of timesteps of ECG")
     parser.add_argument('--num_layers', type=int, default=4, help="Number of convolutional layers")
     parser.add_argument('--num_tokens', type=int, default=128, help="Number of tokens in VQVAE")
@@ -172,16 +174,16 @@ if __name__ == '__main__':
     parser.add_argument('--temperature', type=float, default=0.9, help="Temperature for gumbel softmax")
     parser.add_argument('--straight_through', type=bool, default=False, help="Straight through estimator for gumbel softmax")
 
-    parser.add_argument('--savedir', type=str, default="./saved_models/ptb_residual_vqvae_nonoverlap_16_8/")
+    parser.add_argument('--savedir', type=str, default="./vqvae_models/flat_vqvae_nonoverlap_16_8/")
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--n_epochs', type=int, default=301)
-    parser.add_argument('--mode', type=str, default='train', choices=['test', 'train'])
+    parser.add_argument('--mode', type=str, default='test', choices=['test', 'train'])
     parser.add_argument('--num_quantizers', type=int, default=8)
     
 
     #test
-    parser.add_argument('--load_model', type=str, default="./saved_models/ptb_residual_vqvae_nonoverlap_16_4/model_300.pt", help="Trained VQ-VAE Path")
+    parser.add_argument('--load_model', type=str, default="/home/hschung/xai/xai_timeseries/vqvae/saved_models/flat_vqvae_nonoverlap_16_8/model_300.pt", help="Trained VQ-VAE Path")
     parser.add_argument('--decode', type=bool, default=False, help="Decode from latent space")
     
     args = parser.parse_args()
