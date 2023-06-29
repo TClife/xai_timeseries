@@ -139,10 +139,9 @@ class ClassifierTrainer():
                 data, labels = data.to(device), labels.to(device)
                 output, codebook_tokens, recon, input= self.model(data)
                 #calculate auroc curve
-                fpr, tpr, thresholds = sklearn.metrics.roc_curve(labels.cpu(), F.sigmoid(output, dim=1)[:,1].cpu())
-                print(sklearn.metrics.roc_auc_score(labels.cpu(), F.sigmoid(output, dim=1)[:,1].cpu()))
-                
-                loss = criterion(output, labels)
+                labels = torch.argmax(labels, dim=1)
+                fpr, tpr, thresholds = sklearn.metrics.roc_curve(labels.cpu(), output[:,1].cpu())
+                print(sklearn.metrics.roc_auc_score(labels.cpu(), output[:,1].cpu()))
             
                 total_fpr.append(fpr)
                 total_tpr.append(tpr)
@@ -154,13 +153,13 @@ class ClassifierTrainer():
                 total_recon.append(recon)
                 total_tokens.append(codebook_tokens)
 
-                skplt.metrics.plot_roc_curve(labels.cpu(), F.sigmoid(output, dim=1)[:,1].cpu())
+                skplt.metrics.plot_roc_curve(labels.cpu(), output.cpu())
                 plt.ylabel('True Positive Rate')
                 plt.xlabel('False Positive Rate')
                 plt.savefig('auroc.png')
                 plt.clf()
                 
-                skplt.metrics.plot_precision_recall_curve(labels.cpu(), F.sigmoid(output, dim=1)[:,1].cpu())
+                skplt.metrics.plot_precision_recall_curve(labels.cpu(), output.cpu())
                 plt.savefig('precision_recall.png')
                 plt.clf()
             
@@ -189,13 +188,13 @@ class ClassifierTrainer():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser() 
     #Model Configuration
-    parser.add_argument('--classification_model', type=str, default="/home/hschung/saved_models/timeseries/ptb_cnn/classification_870.pt")
-    parser.add_argument('--vqvae_model', default = "./vqvae_models/ptb_residual_vqvae_nonoverlap_16_8/model_300.pt")  
+    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb_conv_nonoverlap_128_1/model_2990.pt")
+    parser.add_argument('--vqvae_model', default = "./vqvae_models/ptb_residual_vqvae_nonoverlap_16_1/model_300.pt")  
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--lr', type=float, default=2e-4)
-    parser.add_argument('--n_epochs', type=int, default=1000)
+    parser.add_argument('--n_epochs', type=int, default=3000)
     parser.add_argument('--n_emb', type=int, default=64)
-    parser.add_argument('--mode', type=str, default='train', choices=['test', 'train'])
+    parser.add_argument('--mode', type=str, default='test', choices=['test', 'train'])
     parser.add_argument('--task', type=str, default='classification', help="Task being done")
     parser.add_argument('--dataset', type=str, default='ptb', help="Dataset to train on")
     parser.add_argument('--auc_classification', type=bool, default=False)
