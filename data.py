@@ -81,8 +81,8 @@ def load_data(data_name, task):
         if data_name=='ptb':
             class0_pth = './data/ptbdb_normal.csv'
             class1_pth = './data/ptbdb_abnormal.csv'
-            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)[:400]
-            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)[:400]
+            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)
+            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)
             class0_label = torch.zeros(len(class0_data))
             class1_label = torch.ones(len(class1_data))
 
@@ -121,15 +121,15 @@ def load_data(data_name, task):
             #data
             n_set = torch.tensor(torch.load('./mit_bih_dataset/n_data.pt'))
             s_set = torch.tensor(torch.load('./mit_bih_dataset/s_data.pt'))
-            v_set = torch.tensor(torch.load('./mit_bih_dataset/v_data.pt'))[:400]
-            f_set = torch.tensor(torch.load('./mit_bih_dataset/f_data.pt'))[:400]
+            v_set = torch.tensor(torch.load('./mit_bih_dataset/v_data.pt'))
+            f_set = torch.tensor(torch.load('./mit_bih_dataset/f_data.pt'))
             q_set = torch.tensor(torch.load('./mit_bih_dataset/q_data.pt'))
             
             #labels
             n_label = torch.tensor(torch.load('./mit_bih_dataset/n_labels.pt'))
             s_label = torch.tensor(torch.load('./mit_bih_dataset/s_labels.pt'))
-            v_label = torch.tensor(torch.load('./mit_bih_dataset/v_labels.pt'))[:400]-2
-            f_label = torch.tensor(torch.load('./mit_bih_dataset/f_labels.pt'))[:400]-2
+            v_label = torch.tensor(torch.load('./mit_bih_dataset/v_labels.pt'))-2
+            f_label = torch.tensor(torch.load('./mit_bih_dataset/f_labels.pt'))-2
             q_label = torch.tensor(torch.load('./mit_bih_dataset/q_labels.pt'))
 
             data = torch.cat((v_set,f_set), dim=0)

@@ -126,7 +126,8 @@ class ClassifierTrainer():
         total_labels = []
         total_data = []
         total_recon = []   
-        total_tokens = []    
+        total_tokens = []   
+        total_score = [] 
         
         total_fpr = []
         total_tpr = []
@@ -141,7 +142,9 @@ class ClassifierTrainer():
                 #calculate auroc curve
                 labels = torch.argmax(labels, dim=1)
                 fpr, tpr, thresholds = sklearn.metrics.roc_curve(labels.cpu(), output[:,1].cpu())
-                print(sklearn.metrics.roc_auc_score(labels.cpu(), output[:,1].cpu()))
+                score = sklearn.metrics.roc_auc_score(labels.cpu(), output[:,1].cpu())
+                total_score.append(score)
+                print(score)
             
                 total_fpr.append(fpr)
                 total_tpr.append(tpr)
@@ -163,6 +166,7 @@ class ClassifierTrainer():
                 plt.savefig('precision_recall.png')
                 plt.clf()
             
+            print("final test score: ", np.mean(total_score))
             total_input = torch.vstack(total_input)
             total_output = torch.vstack(total_output)
             total_labels = torch.concat(total_labels)
@@ -188,11 +192,11 @@ class ClassifierTrainer():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser() 
     #Model Configuration
-    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb_conv_nonoverlap_128_1/model_2990.pt")
-    parser.add_argument('--vqvae_model', default = "./vqvae_models/ptb_residual_vqvae_nonoverlap_16_1/model_300.pt")  
-    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb_conv_nonoverlap_128_1/model_290.pt")
+    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/vqvae_models/ptb_residual_vqvae_nonoverlap_16_1/model_300.pt")  
+    parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--lr', type=float, default=2e-4)
-    parser.add_argument('--n_epochs', type=int, default=3000)
+    parser.add_argument('--n_epochs', type=int, default=300)
     parser.add_argument('--n_emb', type=int, default=64)
     parser.add_argument('--mode', type=str, default='test', choices=['test', 'train'])
     parser.add_argument('--task', type=str, default='classification', help="Task being done")
@@ -202,9 +206,10 @@ if __name__ == '__main__':
     parser.add_argument('--num_classes', type=int, default=2)
     parser.add_argument('--positions', type=int, default=0)
     parser.add_argument('--mask', type=int, default=0)
+    parser.add_argument('--transformer_layers', type=int, default=2)
     
     #directories 
-    parser.add_argument('--savedir', type=str, default="./classification_models/ptb_conv_nonoverlap_128_8/")
+    parser.add_argument('--savedir', type=str, default="./classification_models/ptb_transf_nonoverlap_128_8/")
 
     args = parser.parse_args()
     
@@ -216,7 +221,8 @@ if __name__ == '__main__':
         positions = args.positions,
         mask = args.mask,
         auc_classification = args.auc_classification,
-        model_type = args.model_type
+        model_type = args.model_type,
+        transformer_layers = args.transformer_layers
     ).to(device)
 
     if args.mode == "train":
