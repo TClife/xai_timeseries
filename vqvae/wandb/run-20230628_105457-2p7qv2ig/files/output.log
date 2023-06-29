@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/smjo/xai_timeseries/vqvae/vqvae.py", line 209, in <module>
+    vqtrain.train(vae)
+  File "/home/smjo/xai_timeseries/vqvae/vqvae.py", line 53, in train
+    self.savedir = os.path.join(self.args.savedir, args.dataset, args.num_quantizers)
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/posixpath.py", line 90, in join
+    genericpath._check_arg_types('join', a, *p)
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/genericpath.py", line 152, in _check_arg_types
+    raise TypeError(f'{funcname}() argument must be str, bytes, or '
+TypeError: join() argument must be str, bytes, or os.PathLike object, not 'int'

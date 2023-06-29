@@ -3,7 +3,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR, MultiStepLR
 from torch.utils.data import DataLoader, random_split
 from residual_vqvae import Residual_VQVAE
-from data import load_data
+
 import numpy as np
 import argparse
 from torch.utils.data import DataLoader
@@ -11,10 +11,13 @@ import copy
 import matplotlib.pyplot as plt 
 import os
 import wandb
+from dataload import makedata
 torch.set_num_threads(32) 
 torch.manual_seed(911)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
- 
+wandb.init(project="residual_VQVAE", reinit=True)
+
 #Trainer 
 class VQTrainer():
     def __init__(self, args):
@@ -26,7 +29,7 @@ class VQTrainer():
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        ds = load_data(args.dataset)
+        ds = makedata(self.dataset)
 
         # Split the dataset into training, validation, and test sets
         train_size = int(0.8 * len(ds))
@@ -48,7 +51,8 @@ class VQTrainer():
         best_model = None
 
         #directory 
-        self.savedir = self.args.savedir
+        self.savedir = os.path.join(*[self.args.savedir, args.dataset, str(args.num_quantizers)])
+        wandb.run.name = self.args.dataset + f"num_quantizers{args.num_quantizers}"
         directory = os.path.join(self.savedir)
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -162,7 +166,7 @@ class VQTrainer():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser() 
     #Model Configuration
-    parser.add_argument('--dataset', type=str, default='ptb', help="Dataset to train on")
+    parser.add_argument('--dataset', type=str, default='mit', help="Dataset to train on")
     parser.add_argument('--ecg_size', type=int, default=208, help="Number of timesteps of ECG")
     parser.add_argument('--num_layers', type=int, default=4, help="Number of convolutional layers")
     parser.add_argument('--num_tokens', type=int, default=128, help="Number of tokens in VQVAE")
@@ -172,16 +176,16 @@ if __name__ == '__main__':
     parser.add_argument('--temperature', type=float, default=0.9, help="Temperature for gumbel softmax")
     parser.add_argument('--straight_through', type=bool, default=False, help="Straight through estimator for gumbel softmax")
 
-    parser.add_argument('--savedir', type=str, default="./saved_models/ptb_residual_vqvae_nonoverlap_16_4/")
+    parser.add_argument('--savedir', type=str, default="./saved_models")
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--n_epochs', type=int, default=301)
     parser.add_argument('--mode', type=str, default='train', choices=['test', 'train'])
-    parser.add_argument('--num_quantizers', type=int, default=4)
+    parser.add_argument('--num_quantizers', type=int, default=[1,2,4,8])
     
 
     #test
-    parser.add_argument('--load_model', type=str, default="./saved_models/ptb_residual_vqvae_nonoverlap_16_4/model_300.pt", help="Trained VQ-VAE Path")
+    parser.add_argument('--load_model', type=str, default="/home/smjo/xai_timeseries/vqvae/saved_models/hard_mitbih/1/model_280.pt", help="Trained VQ-VAE Path")
     parser.add_argument('--decode', type=bool, default=False, help="Decode from latent space")
     
     args = parser.parse_args()

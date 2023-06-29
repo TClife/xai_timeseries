@@ -1,0 +1,22 @@
+dataset is hard_mitbih
+X shape:torch.Size([400, 208]), y shape:torch.Size([400])
+/home/smjo/xai_timeseries/vqvae/dataload.py:59: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  class0_data = torch.tensor(torch.load(class0_pth))
+/home/smjo/xai_timeseries/vqvae/dataload.py:60: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  class1_data = torch.tensor(torch.load(class0_pth))
+/home/smjo/xai_timeseries/vqvae/dataload.py:61: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  class0_label = torch.tensor(torch.load(class0_label_pth))
+/home/smjo/xai_timeseries/vqvae/dataload.py:62: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  class1_label = torch.tensor(torch.load(class1_label_pth))
+Traceback (most recent call last):
+  File "/home/smjo/xai_timeseries/vqvae/vqvae.py", line 214, in <module>
+    vqtrain.test(vae)
+  File "/home/smjo/xai_timeseries/vqvae/vqvae.py", line 134, in test
+    a = torch.load(args.load_model)
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/site-packages/torch/serialization.py", line 699, in load
+    with _open_file_like(f, 'rb') as opened_file:
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/site-packages/torch/serialization.py", line 231, in _open_file_like
+    return _open_file(name_or_buffer, mode)
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/site-packages/torch/serialization.py", line 212, in __init__
+    super(_open_file, self).__init__(open(name, mode))
+FileNotFoundError: [Errno 2] No such file or directory: './saved_models/ptb_residual_vqvae_nonoverlap_16_4/model_300.pt'

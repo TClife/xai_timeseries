@@ -1,0 +1,11 @@
+dataset is peak
+X shape:torch.Size([1420, 208]), y shape:torch.Size([1420])
+Traceback (most recent call last):
+  File "/home/smjo/xai_timeseries/vqvae/vqvae.py", line 214, in <module>
+    vqtrain.test(vae)
+  File "/home/smjo/xai_timeseries/vqvae/vqvae.py", line 136, in test
+    self.model.load_state_dict(a['model_state_dict'])
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1497, in load_state_dict
+    raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
+RuntimeError: Error(s) in loading state_dict for Residual_VQVAE:
+	Missing key(s) in state_dict: "vq.layers.1._codebook.initted", "vq.layers.1._codebook.cluster_size", "vq.layers.1._codebook.embed_avg", "vq.layers.1._codebook.embed", "vq.layers.2._codebook.initted", "vq.layers.2._codebook.cluster_size", "vq.layers.2._codebook.embed_avg", "vq.layers.2._codebook.embed", "vq.layers.3._codebook.initted", "vq.layers.3._codebook.cluster_size", "vq.layers.3._codebook.embed_avg", "vq.layers.3._codebook.embed".

@@ -1,0 +1,11 @@
+dataset is hard_mitbih
+X shape:torch.Size([400, 208]), y shape:torch.Size([400])
+/home/smjo/xai_timeseries/vqvae/dataload.py:59: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  class0_data = torch.tensor(torch.load(class0_pth))
+/home/smjo/xai_timeseries/vqvae/dataload.py:60: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  class1_data = torch.tensor(torch.load(class0_pth))
+/home/smjo/xai_timeseries/vqvae/dataload.py:61: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  class0_label = torch.tensor(torch.load(class0_label_pth))
+/home/smjo/xai_timeseries/vqvae/dataload.py:62: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  class1_label = torch.tensor(torch.load(class1_label_pth))
+	test_loss: 0.000346

@@ -1,0 +1,24 @@
+
+dataset is peak
+Traceback (most recent call last):
+  File "/home/smjo/xai_timeseries/vqvae/vqvae.py", line 193, in <module>
+    vqtrain = VQTrainer(args)
+  File "/home/smjo/xai_timeseries/vqvae/vqvae.py", line 32, in __init__
+    ds = makedata(self.dataset)
+  File "/home/smjo/xai_timeseries/vqvae/dataload.py", line 54, in makedata
+    class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/site-packages/pandas/util/_decorators.py", line 211, in wrapper
+    return func(*args, **kwargs)
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/site-packages/pandas/util/_decorators.py", line 331, in wrapper
+    return func(*args, **kwargs)
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/site-packages/pandas/io/parsers/readers.py", line 950, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/site-packages/pandas/io/parsers/readers.py", line 605, in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/site-packages/pandas/io/parsers/readers.py", line 1442, in __init__
+    self._engine = self._make_engine(f, self.engine)
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/site-packages/pandas/io/parsers/readers.py", line 1735, in _make_engine
+    self.handles = get_handle(
+  File "/home/smjo/anaconda3/envs/xai_timeseries/lib/python3.10/site-packages/pandas/io/common.py", line 856, in get_handle
+    handle = open(
+FileNotFoundError: [Errno 2] No such file or directory: '/home/smjo/xai/timeseries_xai/data/made_data/class0.csv'

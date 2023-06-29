@@ -1,0 +1,1 @@
+{"Training recon loss": 0.008186079189181327, "_timestamp": 1687917593.6844277, "_runtime": 48.67342662811279, "_step": 601, "Validation recon loss": 0.007813801057636738, "_wandb": {"runtime": 48}}

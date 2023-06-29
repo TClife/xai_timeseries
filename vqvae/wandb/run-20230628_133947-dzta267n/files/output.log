@@ -1,0 +1,3 @@
+dataset is peak
+X shape:torch.Size([1420, 208]), y shape:torch.Size([1420])
+	test_loss: 0.055089
