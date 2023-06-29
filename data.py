@@ -96,8 +96,8 @@ def load_data(data_name, task):
         elif data_name=='flat':
             class0_pth = "./data/amplitude_class0.csv"
             class1_pth = "./data/amplitude_class1.csv"
-            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)[:400]
-            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)[:400]
+            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)
+            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)
             class0_label = torch.zeros(len(class0_data))
             class1_label = torch.ones(len(class1_data))
             
@@ -157,3 +157,39 @@ def load_data(data_name, task):
     ds = ECGDataset(data, labels)
  
     return ds
+
+    #plot dataset    
+    # if args.plot_dataset:
+    #     label0 = []
+    #     label1 = []
+    #     label2 = []
+    #     label3 = []
+
+    #     for idx in range(0, len(data)):
+    #         if labels[idx] == 0:
+    #             label0.append(data[idx, :])
+    #             # plt.plot(data[idx, :], 'r')
+    #         elif labels[idx] == 1:
+    #             label1.append(data[idx, :])
+    #             # plt.plot(data[idx, :], 'orange')
+    #         elif labels[idx] == 2:
+    #             label2.append(data[idx, :])
+    #             # plt.plot(data[idx, :], 'yellow')
+    #         elif labels[idx] == 3:
+    #             label3.append(data[idx, :])
+    #             # plt.plot(data[idx, :], 'g')
+        
+    #     plot0 = torch.mean(torch.stack(label0),0)
+    #     plot1 = torch.mean(torch.stack(label1),0)
+    #     plot2 = torch.mean(torch.stack(label2),0)
+    #     plot3 = torch.mean(torch.stack(label3),0)
+
+    #     plt.plot(plot0, 'r', label='Class 0')
+    #     plt.plot(plot1, 'orange', label='Class 1')
+    #     plt.plot(plot2, 'yellow', label='Class 2')
+    #     plt.plot(plot3, 'g', label='Class 3')
+    #     plt.ylim(-5,5)
+    #     plt.xticks(np.arange(0, 1633, 200))
+    #     plt.title('ECG Torso Dataset') 
+    #     plt.legend()
+    #     plt.savefig("ECGtorso_dataset.png")
