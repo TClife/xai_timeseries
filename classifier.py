@@ -206,7 +206,6 @@ if __name__ == '__main__':
     parser.add_argument('--num_classes', type=int, default=2)
     parser.add_argument('--positions', type=int, default=0)
     parser.add_argument('--mask', type=int, default=0)
-    parser.add_argument('--transformer_layers', type=int, default=1)
     
     #directories 
     parser.add_argument('--savedir', type=str, default="./classification_models/flat_conv_transf_nonoverlap_128_8/")
@@ -221,8 +220,7 @@ if __name__ == '__main__':
         positions = args.positions,
         mask = args.mask,
         auc_classification = args.auc_classification,
-        model_type = args.model_type,
-        transformer_layers = args.transformer_layers
+        model_type = args.model_type
     ).to(device)
 
     if args.mode == "train":

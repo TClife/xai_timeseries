@@ -253,7 +253,7 @@ class Residual_VQVAE(nn.Module):
         self.vq.eval()
         
         quantized_out = self.vq.get_codes_from_indices(indices)
-        quantized_out = rearrange(quantized_out.sum(dim=0), 'b t c -> b c t', t = 13) #[bs, 32, 12] == [batch, embedding_dim, timestep]
+        quantized_out = rearrange(quantized_out.sum(dim=0), 'b t c -> b c t', t = 12) #[bs, 32, 12] == [batch, embedding_dim, timestep]
         out = self.decoder(quantized_out)
         
         return out

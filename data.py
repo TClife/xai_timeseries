@@ -81,8 +81,8 @@ def load_data(data_name, task):
         if data_name=='ptb':
             class0_pth = './data/ptbdb_normal.csv'
             class1_pth = './data/ptbdb_abnormal.csv'
-            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)
-            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)
+            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)[:400]
+            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)[:400]
             class0_label = torch.zeros(len(class0_data))
             class1_label = torch.ones(len(class1_data))
 
