@@ -20,21 +20,21 @@ import scikitplot as skplt
 from dataload import makedata
 torch.set_num_threads(32)
 torch.manual_seed(911) 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
 #Trainer
 class ClassifierTrainer():
     def __init__(self, args):
         self.args = args
-        self.savedir = self.args.savedir
+        self.savedir = os.path.join(*[self.args.savedir, self.args.dataset, str(self.args.num_quantizers)])
         self.dataset = self.args.dataset
         self.task = self.args.task
-        directory = os.path.join(self.savedir, self.dataset)
+        directory = self.savedir
         if not os.path.exists(directory):
             os.makedirs(directory)
         
         #ds = load_data(self.dataset, self.task)
-        ds= makedata(self.dataset)
+        ds = load_data(self.dataset, self.task)
         
         # Split the dataset into training, validation, and test sets
         train_size = int(0.8 * len(ds))
@@ -67,8 +67,6 @@ class ClassifierTrainer():
                 labels = labels.float()
                 data, labels = data.to(device), labels.to(device)
                 output, indices, recon, quantized= self.model(data) 
-                output = torch.argmax(output,1).float()
-                print(f"output:{output.shape}, labels:{labels.shape}")
                 loss = criterion(output, labels) 
                 
                 optimizer.zero_grad()
@@ -112,8 +110,10 @@ class ClassifierTrainer():
                         }
                 
             if epoch % 10 == 0:
-                savepath  = os.path.join(self.savedir, str(args.num_quantizers))
+                savepath  = os.path.join(self.savedir,f"{self.args.model_type}.pt")
+                print(savepath)
                 torch.save(savedict, savepath) 
+        
     def test(self, net):
         criterion = torch.nn.BCELoss()
         self.model = net.to(device)
@@ -196,25 +196,27 @@ class ClassifierTrainer():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser() 
     #Model Configuration
-    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb_conv_nonoverlap_128_1/model_290.pt")
-    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/vqvae_models/ptb_residual_vqvae_nonoverlap_16_1/model_300.pt")  
+    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/flat_conv_transf_nonoverlap_128_8/model_290.pt")
+    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/vqvae_models/flat_vqvae_nonoverlap_16_8/model_300.pt")  
     parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--lr', type=float, default=2e-4)
     parser.add_argument('--n_epochs', type=int, default=300)
     parser.add_argument('--n_emb', type=int, default=64)
     parser.add_argument('--mode', type=str, default='train', choices=['test', 'train'])
     parser.add_argument('--task', type=str, default='classification', help="Task being done")
-    parser.add_argument('--dataset', type=str, default='ptb', help="Dataset to train on")
+    parser.add_argument('--dataset', type=str, default='flat', help="Dataset to train on")
     parser.add_argument('--auc_classification', type=bool, default=False)
-    parser.add_argument('--model_type', type=str, default="cnn")
+    parser.add_argument('--model_type', type=str, default="cnn_transformer")
     parser.add_argument('--num_classes', type=int, default=2)
     parser.add_argument('--positions', type=int, default=0)
     parser.add_argument('--mask', type=int, default=0)
     parser.add_argument('--transformer_layers', type=int, default=2)
     parser.add_argument('--num_quantizers', type=int, default=[1,2,4,8])
+
     
     #directories 
     parser.add_argument('--savedir', type=str, default="/home/smjo/xai_timeseries/vqvae/saved_models/classification/")
+
 
     args = parser.parse_args()
     
@@ -226,8 +228,7 @@ if __name__ == '__main__':
         positions = args.positions,
         mask = args.mask,
         auc_classification = args.auc_classification,
-        model_type = args.model_type,
-        transformer_layers = args.transformer_layers
+        model_type = args.model_type
     ).to(device)
 
     if args.mode == "train":

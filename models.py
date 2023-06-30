@@ -20,7 +20,7 @@ torch.manual_seed(911)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class VQ_Classifier(nn.Module):
-    def __init__(self, *, num_classes, vqvae_model, positions, mask, auc_classification, model_type, transformer_layers):
+    def __init__(self, *, num_classes, vqvae_model, positions, mask, auc_classification, model_type):
         super().__init__()
         self.model_type = model_type
         self.positions = positions
@@ -61,7 +61,7 @@ class VQ_Classifier(nn.Module):
             
         elif self.model_type == "transformer":
             self.encoderlayer = nn.TransformerEncoderLayer(d_model=64, nhead=8)
-            self.transformer = nn.TransformerEncoder(self.encoderlayer, num_layers=transformer_layers)
+            self.transformer = nn.TransformerEncoder(self.encoderlayer, num_layers=2)
             
             self.mlp_head = nn.Sequential(
                 nn.Linear(16, num_classes),
@@ -73,7 +73,7 @@ class VQ_Classifier(nn.Module):
             )      
         elif self.model_type == "cnn_transformer":
             self.cnnencoderlayer = nn.TransformerEncoderLayer(d_model=16, nhead=8)
-            self.cnn_transformer = nn.TransformerEncoder(self.cnnencoderlayer, num_layers=transformer_layers)
+            self.cnn_transformer = nn.TransformerEncoder(self.cnnencoderlayer, num_layers=1)
             
             self.mlp_head2 = nn.Sequential(
                 nn.Linear(64, num_classes),
