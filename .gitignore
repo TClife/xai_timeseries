@@ -1,0 +1,7 @@
+*.pt
+*.png
+*.log
+*.pyc
+*.csv
+*.json
+wandb

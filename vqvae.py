@@ -25,11 +25,13 @@ class VQTrainer():
          #directory 
         self.savedir = self.args.savedir
         self.dataset = self.args.dataset
+        self.task = self.args.task
         directory = os.path.join(self.savedir)
         if not os.path.exists(directory):
             os.makedirs(directory)
 
         ds = makedata(self.dataset)
+
 
         # Split the dataset into training, validation, and test sets
         train_size = int(0.8 * len(ds))
@@ -158,7 +160,7 @@ class VQTrainer():
                 plt.clf()
         
         test_res_recon_error.append(test_epoch_mse/len(self.test_loader))
-        print(f'\ttest_loss: {test_res_recon_error[-1]:.6f}')
+        print(f'\ttest_loss: {test_res_recon_error[-1]:.10f}')
         
             
 
@@ -166,7 +168,9 @@ class VQTrainer():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser() 
     #Model Configuration
+
     parser.add_argument('--dataset', type=str, default='mit', help="Dataset to train on")
+
     parser.add_argument('--ecg_size', type=int, default=208, help="Number of timesteps of ECG")
     parser.add_argument('--num_layers', type=int, default=4, help="Number of convolutional layers")
     parser.add_argument('--num_tokens', type=int, default=128, help="Number of tokens in VQVAE")
@@ -186,6 +190,7 @@ if __name__ == '__main__':
 
     #test
     parser.add_argument('--load_model', type=str, default="/home/smjo/xai_timeseries/vqvae/saved_models/hard_mitbih/1/model_280.pt", help="Trained VQ-VAE Path")
+
     parser.add_argument('--decode', type=bool, default=False, help="Decode from latent space")
     
     args = parser.parse_args()
