@@ -87,25 +87,31 @@ class VQ_Classifier(nn.Module):
         self.softmax = nn.Softmax(dim=1)
     
     def ig(self, encoding_indices):
-        # encoded = self.vae.encoder(img.float())
+        quantized = self.embedding(encoding_indices.long())
+        quantized = quantized.view(quantized.shape[0], -1, quantized.shape[-1])
+            
+
+        if self.model_type == "cnn":
+            quantized_t = quantized.transpose(2,1)
+            x = self.to_hidden(quantized_t)
+            x = x.transpose(2,1) 
+            x = x.mean(dim = 1)
+            x = self.mlp_head(x)
+        elif self.model_type =="transformer":
+            x = self.transformer(quantized)
+            x = x.mean(dim = 1)
+            x = self.mlp_head2(x)
+        elif self.model_type =="cnn_transformer":
+            quantized_t = quantized.transpose(2,1)
+            x = self.to_hidden(quantized_t)
+            x = x.transpose(2,1)      
+            x = self.cnn_transformer(x)
+            x = x.mean(dim = 1)
+            x = self.mlp_head(x)
+    
         
-        # encoded = rearrange(encoded, 'b c t -> b t c')
-        # quant, encoding_indices, commit_loss = self.vae.vq(encoded) 
-        
-        #embed codebooks
-        
-        quantized = self.embedding(encoding_indices) 
-        
-        quantized = quantized.transpose(2,1)
-        
-        x = self.to_hidden(quantized)
-        
-        x = x.transpose(2,1)
-        x = x.mean(dim = 1)
-        
-        # x_recon = self.vae(img)[0]
-        
-        return self.mlp_head(x), encoding_indices, quantized
+        return x, encoding_indices, quantized
+
     
     def predict(self, X):
         if isinstance(X, np.ndarray):
