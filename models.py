@@ -14,6 +14,7 @@ import torch.optim as optim
 import math 
 from residual_vqvae import Residual_VQVAE
 import numpy as np 
+from tqdm import tqdm,sleep
 
 torch.set_num_threads(32)
 torch.manual_seed(911)
@@ -158,34 +159,7 @@ class VQ_Classifier(nn.Module):
                 result = x if result is None else np.concatenate((result, x), axis=0)
                 
         return result, recon
-    
-    def mask_region(self, img):
- 
-        #Zero Padding        
-        padding = (0, 16)
-        img = F.pad(img, padding, "constant", 0)
-        
-        img = img.unsqueeze(1)
-         #convert numpy to tensor
-        if isinstance(img, np.ndarray):
-            img = torch.from_numpy(img).to(device)
-            quantized = self.embedding(img)
-            quantized = quantized.transpose(2,1)
-            x = self.to_hidden(quantized)
-            x = x.transpose(2,1) 
-            x = x.mean(dim = 1)
-            
-            return self.mlp_head(x)
 
-        encoded = self.vae.encoder(img.float()) 
-
-        t = encoded.shape[-1] 
-
-        encoded = rearrange(encoded, 'b c t -> b t c') 
-        quantized, encoding_indices, commit_loss = self.vae.vq(encoded)
-        masked_regions = []
-        
-        return self.mlp_head(x), encoding_indices, quantized
     
     def mask_region(self, img):
      
@@ -237,31 +211,28 @@ class VQ_Classifier(nn.Module):
 
         encoded = rearrange(encoded, 'b c t -> b t c') 
         quantized, encoding_indices, commit_loss = self.vae.vq(encoded)
-        print(len(img))
+
         if self.auc_classification:
             new_tensor=[]
             #create a mask tensor
-            for idx in range(len(img)):
-                for num in range(len())
-                tmp = torch.full_like(encoding_indices[idx], self.mask, device=device)    #12*num_quantizer
-                print(f"tmp:{tmp}")
-                print(f"tmp shape:{tmp.shape}")
-                for i in range(len(self.positions)):
-                     #encoding indices 80*12*2
-                    try:
-                        tmp[self.positions[i],0] = encoding_indices[idx,self.positions[i],0] 
-                        tmp[self.positions[i],1] = encoding_indices[idx,self.positions[i],1]
-                    
-                    except:
-                        continue
+            for idx in tqdm(range(len(img))):
+                tmp = torch.empty(encoding_indices[idx].shape, dtype = int)          #12*num_quantizers
+                for num in range(encoding_indices[idx].shape[1]):
+                    #tmp = torch.full_like(encoding_indices[idx][:,num], self.mask[num], device=device)    #12
+                    tmp[:,num] = self.mask[num]
+                    for i in range(len(self.positions)):
+                        #encoding indices 80*12*2
+                        try:
+                            tmp[:,self.positions[i]] = encoding_indices[idx,:,self.positions[i]] 
+                        except:
+                            continue
                 new_tensor.append([tmp.cpu().numpy()])
-            #print(f"new_tensor:{new_tensor}")
+                sleep(0.1)
+          
             new_tensor = torch.LongTensor(new_tensor).to(device)
-            #print(f"after adding:{new_tensor.shape},{new_tensor}")
             quantized = self.embedding(new_tensor)
-            #print(f"embedding shape:{quantized.shape}")
             quantized = quantized.reshape(len(img),-1,64)
-            #print(f"quanitzed:{quantized.shape}")
+
         else:
             #embed codebooks
             #print(f"else case:{encoding_indices[0]}")

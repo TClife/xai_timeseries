@@ -23,11 +23,7 @@ from dataload import makedata
 from classifier import ClassifierTrainer
 from models import VQ_Classifier
 import itertools
-warnings.filterwarnings("ignore", category=UserWarning)
-os.environ["CUDA_VISIBLE_DEVICES"] = "5"
-torch.set_num_threads(32) 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-torch.manual_seed(911)
+from data import load_data
 
 
 if __name__ =='__main__':
@@ -52,45 +48,8 @@ if __name__ =='__main__':
     classifier = args.model_type
     classification_model =  args.classification_model
     vqvae_model = args.vqvae_model
-    ds = makedata(dataset)
+    ds = load_data(args.dataset, task = 'classification')
     
-    '''
-    if dataset == 'flat':
-        vqvae_model = "/home/hschung/saved_models/timeseries/flat/model_360.pt"
-        if classifier == 'cnn_transformer':
-            classification_model ="/home/hschung/saved_models/timeseries/flat_clas_cnn_transf/classification_60.pt"
-        elif classifier == 'transformer':
-            classification_model="/home/hschung/saved_models/timeseries/flat_clas_transf/classification_90.pt"
-        elif classifier == 'cnn':
-            classification_model = "/home/hschung/saved_models/timeseries/flat_clas/classification_60.pt"
-            
-            
-    elif dataset=='peak':
-        vqvae_model="/home/hschung/saved_models/timeseries/peak2/model_2990.pt"
-        if classifier == 'cnn_transformer':
-            classification_model = "/home/hschung/saved_models/timeseries/peak_clas_cnn_transf/classification_80.pt"
-        elif classifier =='transformer':
-            classification_model = "/home/hschung/saved_models/timeseries/peak_clas_transf/classification_80.pt"
-        elif classifier =='cnn':
-            classification_model ="/home/hschung/saved_models/timeseries/peak_clas/classification_170.pt"
-            
-            
-    elif dataset =='mitbih':
-        vqvae_model ="/home/hschung/saved_models/timeseries/hard_mitbih_sf/model_1170.pt"
-        if classifier == 'cnn_transformer':
-            classification_model="/home/hschung/saved_models/timeseries/hard_mitbih_clas_cnn_transf/classification_190.pt"
-        elif classifier == 'transformer':
-            classification_model="/home/hschung/saved_models/timeseries/hard_mitbih_clas_transf/classification_40.pt" 
-        elif classifier == 'cnn':
-            classification_model ="/home/hschung/saved_models/timeseries/classification_model_hard_mitbih/classification_110.pt"
-
-    elif dataset == 'ptb':
-        vqvae_model =  "/home/hschung/saved_models/timeseries/ptb/model_780.pt"
-        if classifier == 'cnn':
-            classification_model="/home/hschung/saved_models/timeseries/ptb_cnn/classification_870.pt"
-    else:
-        print("wrong name")
-    '''
     train_size = int(0.8 * len(ds))
     val_size = int(0.1 * len(ds))
     test_size = len(ds) - train_size - val_size
@@ -101,65 +60,49 @@ if __name__ =='__main__':
     
     #Find masking token
     end_tokens={}
-    
+
     conv_net = VQ_Classifier(
-        num_classes = args.num_classes,
-        vqvae_model = args.vqvae_model,
-        positions = args.positions,
-        mask = args.mask,
-        auc_classification = True,
-        model_type = args.model_type
+        num_classes = 2,
+        vqvae_model = vqvae_model,
+        positions =0,
+        mask = 0,
+        auc_classification = False,
+        model_type = classifier
     ).to(device)
-    
-    a = torch.load(args.classification_model)
+
+    a = torch.load(classification_model)
     conv_net.load_state_dict(a['model_state_dict'])
-    
+
     for param in conv_net.parameters():
         param.requires_grad = False
-    
+
     conv_net.eval()
-    
-    with torch.no_grad():
-        for idx, (data, labels) in enumerate(test_loader):
-            data = data.unsqueeze(1).float()
-            labels = labels.type(torch.LongTensor)
-            data, labels = data.to(device), labels.to(device)
-            output, codebook_tokens, recon, input= conv_net(data)
-            print(f"codebook indices:{codebook_tokens}")
-            for token in codebook_tokens:
-                try:
-                    end_tokens[token[-1].item()]+=1
-                except:
-                    end_tokens[token[-1].item()]=1
-                    
-        mask_code = max(end_tokens, key=end_tokens.get)
-        print(f"mask code is {mask_code} ")
-    
+        
+    masked_regions = conv_net.mask_region(ds.data[:64, :].to(device))
     
     
     #Make position answer
     answer = {}         
     arr = [i for i in range(len_position)]
     roc_auc_scores=[]
-    
- 
+
+
     for cnt in range(len_position):
         max_auc=-1
         print("arr:", arr)
         for i in arr:
             #ECG Dataset
             positions = list(answer.values())+[i]
-            net = VQVAE_Conv(
-                n_emb = 64,
-                num_classes =args.num_classes,
-                vqvae_model=vqvae_model,
+            net = VQ_Classifier(
+                num_classes = 2,
+                vqvae_model = vqvae_model,
                 positions = positions,
-                mask = mask_code,
-                auc_classification=True,
+                mask = masked_regions,
+                auc_classification = True,
                 model_type = classifier
-            )
-            print(positions)
-            classification_model = classification_model
+            ).to(device)
+            
+            
             net.load_state_dict(torch.load(classification_model)["model_state_dict"])
             net = net.to(device)
             for param in net.parameters():
@@ -171,9 +114,11 @@ if __name__ =='__main__':
                 for idx, (data, labels) in enumerate(test_loader):
                     data = data.unsqueeze(1).float()
                     labels = labels.type(torch.LongTensor)
+                    labels = torch.argmax(labels, dim=1)
                     data, labels = data.to(device), labels.to(device)
                     output, codebook_tokens, recon, input= net(data)
-                    score += sklearn.metrics.roc_auc_score(labels.cpu(), F.softmax(output, dim=1)[:,1].cpu())
+                
+                    score += sklearn.metrics.roc_auc_score(labels.cpu(), output[:,1].cpu())
                     
             score = score / (idx+1)
             if score > max_auc:
@@ -182,11 +127,9 @@ if __name__ =='__main__':
         roc_auc_scores.append(max_auc)        
         arr.remove(answer[f"top_{cnt}"])
         
-    
-print("answer:", answer.values())
-print(roc_auc_scores)
-    
-            
+    print(f"roc_auc_scores:{roc_auc_scores}")
+    print()
+                
     
 
 
