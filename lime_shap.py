@@ -28,17 +28,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #Create args parser for labels and batch size 
 parser = ArgumentParser() 
-parser.add_argument('--labels', type=int, default=1)
+parser.add_argument('--labels', type=int, default=0)
 parser.add_argument('--num_features', type=int, default=2)
 parser.add_argument('--batch_size', type=int, default=1)
-parser.add_argument('--epochs', type=int, default=1000)
-parser.add_argument('--indices', type=str, default = "all", choices= ["all", "top2", "top3"])
-parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb_conv_nonoverlap_128_1/model_290.pt")
-parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/vqvae_models/ptb_residual_vqvae_nonoverlap_16_1/model_300.pt")
+parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb_conv_nonoverlap_128_2/model_290.pt")
+parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/vqvae_models/ptb_residual_vqvae_nonoverlap_16_2/model_300.pt")
 parser.add_argument('--task', type=str, default='xai', help="Task being done")
 parser.add_argument('--dataset', type=str, default="ptb")
 parser.add_argument('--plot_dataset', type=bool, default=True)
-parser.add_argument('--feature_selection', type=str, default='lime')
+parser.add_argument('--feature_selection', type=str, default='highest_weights')
 parser.add_argument('--model_type', type=str, default="cnn")
 parser.add_argument('--auc_classification', type=bool, default=False)
 
@@ -55,7 +53,7 @@ training_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=
 validation_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True)
 test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True)
 
-#load classification model 
+#load classification args 
 classification_model = torch.load(args.classification_model)
 class_args = classification_model['args']
 #ECG Dataset
@@ -68,9 +66,16 @@ net = VQ_Classifier(
     model_type = class_args.model_type
 ).to(device)
 
+#load classification model
+net.load_state_dict(classification_model['model_state_dict'])
+
+#find masking regions 
+masked_regions = net.mask_region(ds.data[:64,:].to(device))
+
 #Explainer
-def perturb_codebook(m, idx, channels, num):
-    m[:,idx] = num
+def perturb_codebook(m, idx, channels, mask):
+    for i in range(m.shape[2]):
+        m[:,idx, i] = mask[i]
     return 
 
 def perturb_random(m, idx, channels, unique_values):
@@ -353,11 +358,12 @@ class LimeTimeSeriesExplainer(object):
                          num_features=10,
                          num_samples=5000,
                          model_regressor=None,
-                         replacement_method='mean'):
+                         replacement_method='mean',
+                         mask = None):
 
         permutations, predictions, distances, shapley_weight = self.__data_labels_distances(
             img, timeseries_instance, classifier_fn, unique_values,
-            num_samples, num_slices, index, num_index, len_ts, replacement_method)
+            num_samples, num_slices, index, num_index, len_ts, mask, replacement_method)
 
         is_multivariate = len(timeseries_instance.shape) > 1
         
@@ -373,6 +379,7 @@ class LimeTimeSeriesExplainer(object):
             labels = np.argsort(predictions[0])[-top_labels:]
             ret_exp.top_labels = list(predictions)
             ret_exp.top_labels.reverse()
+        labels = [0,1]
         for label in labels:
             (ret_exp.intercept[int(label)],
              ret_exp.local_exp[int(label)],
@@ -395,6 +402,7 @@ class LimeTimeSeriesExplainer(object):
                                 index,
                                 num_index,
                                 len_ts,
+                                mask,
                                 replacement_method='mean'):
 
         def distance_fn(x):
@@ -452,7 +460,7 @@ class LimeTimeSeriesExplainer(object):
 
                 if replacement_method == "codebook":
                     #use 0th codebook indices as inactive 
-                    perturb_codebook(tmp_series, codebook_idx, channels_to_perturb, int(timeseries[:,-1]))
+                    perturb_codebook(tmp_series, codebook_idx, channels_to_perturb, mask)
                 elif replacement_method == "random":
                     #use random codebook indice as inactive 
                     perturb_random(tmp_series, codebook_idx, channels_to_perturb, unique_values)
@@ -551,219 +559,49 @@ label_codebooks = []
 label_weights = []
 label_position = []
 for k, (data, labels) in enumerate(test_loader):
-
-    #create directory
-    os.makedirs("./ecg_sample_{}_{}/label{}".format(args.dataset, args.feature_selection, int(labels)), exist_ok=True)
-
+    labels = torch.argmax(labels, axis=1)
+    
     #codebook
-    if args.dataset == "ecg":
-        net.eval()
-        net = net.to(device)
-        data = data.unsqueeze(0).to(device)
-        y_hat, codebook, data_recon, _ = net(data) #y_hat is logits, codebook is the codebook values, and emb is the embedded codebook values
-        # Explain ECG Dataset
-        num_features = args.num_features
-        num_slices = 52
-        len_ts = 1632
-        
-        #Number of perturb indices
-        index = list(range(52))    
-        num_indices = len(index)
+    net.eval()
+    net = net.to(device)
+    data = data.unsqueeze(0).to(device)
+    y_hat, codebook, data_recon,_ = net(data) #y_hat is logits, codebook is the codebook values, and emb is the embedded codebook values
+    # Explain ECG Dataset
+    num_features = args.num_features
+    num_slices = codebook.shape[1]
+    len_ts = data.shape[2]
+    
+    #Number of perturb indices
+    index = list(range(num_slices))    
+    num_indices = len(index)
 
-        explainer = LimeTimeSeriesExplainer(class_names =['Class0', 'Class1', 'Class2', 'Class3'], feature_selection = args.feature_selection)
-        exp = explainer.explain_instance(data, codebook, net(data), num_features = num_features, unique_values = unique_values, len_ts = len_ts, index=index, num_index=num_slices, labels=(int(labels),), num_samples = 10000, num_slices = num_slices, replacement_method="random")
-        exp.as_pyplot_figure(label=int(labels))
+    explainer = LimeTimeSeriesExplainer(class_names =['Class0', 'Class1'], feature_selection = args.feature_selection)
+    exp = explainer.explain_instance(data, codebook, net(data), num_features = num_features, unique_values = unique_values, len_ts = len_ts, index=index, num_index=num_slices, labels=int(labels), num_samples = 5000, num_slices = num_slices, replacement_method="codebook", mask = masked_regions)
+    exp.as_pyplot_figure(label=int(labels))
 
-        values_per_slice = round(len_ts / num_slices)
-        all_codebooks = []
-        all_weights = []
-        all_feature = []
-        for i in range(num_features):
-            feature, weight = exp.as_list(int(labels))[i]
-            start = feature * values_per_slice
-            end = start + values_per_slice
-            color = 'red' if weight < 0 else 'green'
-            if weight > 0: 
-                all_weights.append(weight)
-            if abs(weight) > 1:
-                if weight < 0:
-                    weight = -1
-                else:
-                    weight = 1
-            all_codebooks.append(codebook[0,:][feature])
-            if abs(weight*5) > 1:
-                plot_weight = 1
+    values_per_slice = round(len_ts / num_slices)
+    all_codebooks = []
+    all_weights = []
+    all_feature = []
+    for i in range(num_features):
+        feature, weight = exp.as_list(int(labels))[i]
+        start = feature * values_per_slice
+        end = start + values_per_slice
+        color = 'red' if weight < 0 else 'green'
+        if weight > 0: 
+            all_weights.append(weight)
+        if abs(weight) > 1:
+            if weight < 0:
+                weight = -1
             else:
-                plot_weight = weight
-            plt.axvspan(start , end, color=color, alpha=abs(plot_weight))
-            all_feature.append(feature)
-    elif args.dataset == "mixedshapes":
-        net.eval()
-        net = net.to(device)
-        data = data.unsqueeze(0).to(device)
-        y_hat, codebook, data_recon, _ = net(data) #y_hat is logits, codebook is the codebook values, and emb is the embedded codebook values
-        # Explain ECG Dataset
-        num_features = args.num_features
-        num_slices = 52
-        len_ts = 1632
-        
-        #Number of perturb indices
-        index = list(range(52))    
-        num_indices = len(index)
-
-        explainer = LimeTimeSeriesExplainer(class_names =['Class0', 'Class1', 'Class2', 'Class3', 'Class4'])
-        exp = explainer.explain_instance(data, codebook, net(data), num_features = num_features, unique_values = unique_values, len_ts = len_ts, index=index, num_index=num_slices, labels=(int(labels),), num_samples = 10000, num_slices = num_slices, replacement_method="codebook")
-        exp.as_pyplot_figure(label=int(labels))
-
-        values_per_slice = round(len_ts / num_slices)
-        all_codebooks = []
-        all_weights = []
-        all_feature = []
-        for i in range(num_features):
-            feature, weight = exp.as_list(int(labels))[i]
-            start = feature * values_per_slice
-            end = start + values_per_slice
-            color = 'red' if weight < 0 else 'green'
-            if weight > 0: 
-                all_weights.append(weight)
-            if abs(weight) > 1:
-                if weight < 0:
-                    weight = -1
-                else:
-                    weight = 1
-            all_codebooks.append(codebook[0,:][feature])
-            if abs(weight*5) > 1:
-                plot_weight = 1
-            else:
-                plot_weight = weight
-            plt.axvspan(start , end, color=color, alpha=abs(plot_weight))
-            all_feature.append(feature)
-
-    elif args.dataset == "coffee":
-        net.eval()
-        net = net.to(device)
-        data = data.unsqueeze(0).to(device)
-        y_hat, codebook, data_recon, _ = net(data) #y_hat is logits, codebook is the codebook values, and emb is the embedded codebook values
-        # Explain ECG Dataset
-        num_features = args.num_features
-        num_slices = 41
-        len_ts = 328
-        
-        #Number of perturb indices
-        index = list(range(41))    
-        num_indices = len(index)
-
-        explainer = LimeTimeSeriesExplainer(class_names =['Class0', 'Class1'], feature_selection = args.feature_selection)
-        exp = explainer.explain_instance(data, codebook, net(data), num_features = num_features, unique_values = unique_values, len_ts = len_ts, index=index, num_index=num_slices, labels=(int(labels),), num_samples = 10000, num_slices = num_slices, replacement_method="codebook")
-        exp.as_pyplot_figure(label=int(labels))
-
-        values_per_slice = round(len_ts / num_slices)
-        all_codebooks = []
-        all_weights = []
-        all_feature = []
-        for i in range(num_features):
-            feature, weight = exp.as_list(int(labels))[i]
-            start = feature * values_per_slice
-            end = start + values_per_slice
-            color = 'red' if weight < 0 else 'green'
-            if weight > 0: 
-                all_weights.append(weight)
-            if abs(weight) > 1:
-                if weight < 0:
-                    weight = -1
-                else:
-                    weight = 1
-            all_codebooks.append(codebook[0,:][feature])
-            if abs(weight*5) > 1:
-                plot_weight = 1
-            else:
-                plot_weight = weight
-            plt.axvspan(start , end, color=color, alpha=abs(plot_weight))
-            all_feature.append(feature)
-
-    elif args.dataset == "gunpointage":
-        net.eval()
-        net = net.to(device)
-        data = data.unsqueeze(0).to(device)
-        y_hat, codebook, data_recon, _ = net(data) #y_hat is logits, codebook is the codebook values, and emb is the embedded codebook values
-        # Explain ECG Dataset
-        num_features = args.num_features
-        num_slices = 20
-        len_ts = 160
-        
-        #Number of perturb indices
-        index = list(range(20))    
-        num_indices = len(index)
-
-        explainer = LimeTimeSeriesExplainer(class_names =['Class0', 'Class1'], feature_selection = args.feature_selection)
-        exp = explainer.explain_instance(data, codebook, net(data), num_features = num_features, unique_values = unique_values, len_ts = len_ts, index=index, num_index=num_slices, labels=(int(labels),), num_samples = 10000, num_slices = num_slices, replacement_method="codebook")
-        exp.as_pyplot_figure(label=int(labels))
-
-        values_per_slice = round(len_ts / num_slices)
-        all_codebooks = []
-        all_weights = []
-        all_feature = []
-        for i in range(num_features):
-            feature, weight = exp.as_list(int(labels))[i]
-            start = feature * values_per_slice
-            end = start + values_per_slice
-            color = 'red' if weight < 0 else 'green'
-            if weight > 0: 
-                all_weights.append(weight)
-            if abs(weight) > 1:
-                if weight < 0:
-                    weight = -1
-                else:
-                    weight = 1
-            all_codebooks.append(codebook[0,:][feature])
-            if abs(weight*5) > 1:
-                plot_weight = 1
-            else:
-                plot_weight = weight
-            plt.axvspan(start , end, color=color, alpha=abs(plot_weight))
-            all_feature.append(feature)
-
-    elif args.dataset == "mitbih" or args.dataset == "mitbih_answer_one" or args.dataset == "mitbih_answer_two" or args.dataset == "hard_mitbih" or args.dataset == "flat" or args.dataset == "peak":
-        net.eval()
-        net = net.to(device)
-        data = data.unsqueeze(0).to(device)
-        y_hat, codebook, data_recon,_ = net(data) #y_hat is logits, codebook is the codebook values, and emb is the embedded codebook values
-        # Explain ECG Dataset
-        num_features = args.num_features
-        num_slices = codebook.shape[1]
-        len_ts = data.shape[2]
-        
-        #Number of perturb indices
-        index = list(range(num_slices))    
-        num_indices = len(index)
-
-        explainer = LimeTimeSeriesExplainer(class_names =['Class0', 'Class1'], feature_selection = args.feature_selection)
-        exp = explainer.explain_instance(data, codebook, net(data), num_features = num_features, unique_values = unique_values, len_ts = len_ts, index=index, num_index=num_slices, labels=(int(labels),), num_samples = 5000, num_slices = num_slices, replacement_method="codebook")
-        exp.as_pyplot_figure(label=int(labels))
-
-        values_per_slice = round(len_ts / num_slices)
-        all_codebooks = []
-        all_weights = []
-        all_feature = []
-        for i in range(num_features):
-            feature, weight = exp.as_list(int(labels))[i]
-            start = feature * values_per_slice
-            end = start + values_per_slice
-            color = 'red' if weight < 0 else 'green'
-            if weight > 0: 
-                all_weights.append(weight)
-            if abs(weight) > 1:
-                if weight < 0:
-                    weight = -1
-                else:
-                    weight = 1
-            all_codebooks.append(codebook[0,:][feature])
-            if abs(weight*1000000) > 1:
-                plot_weight = 1
-            else:
-                plot_weight = weight
-            plt.axvspan(start , end, color=color, alpha=abs(plot_weight))
-            all_feature.append(feature)
+                weight = 1
+        all_codebooks.append(codebook[0,:, 0][feature])
+        if abs(weight*1000000) > 1:
+            plot_weight = 1
+        else:
+            plot_weight = weight
+        plt.axvspan(start , end, color=color, alpha=abs(plot_weight))
+        all_feature.append(feature)
 
     print("codebooks: ",all_codebooks)
     print("weights: ", all_weights)

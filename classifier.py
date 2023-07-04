@@ -213,7 +213,6 @@ if __name__ == '__main__':
     parser.add_argument('--transformer_layers', type=int, default=2)
     parser.add_argument('--num_quantizers', type=int, default=[1,2,4,8])
 
-    
     #directories 
     parser.add_argument('--savedir', type=str, default="/home/smjo/xai_timeseries/vqvae/saved_models/classification/")
 

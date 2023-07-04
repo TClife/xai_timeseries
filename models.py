@@ -87,23 +87,103 @@ class VQ_Classifier(nn.Module):
         self.softmax = nn.Softmax(dim=1)
     
     def ig(self, encoding_indices):
-        # encoded = self.vae.encoder(img.float())
+        quantized = self.embedding(encoding_indices.long())
+        quantized = quantized.view(quantized.shape[0], -1, quantized.shape[-1])
+            
+
+        if self.model_type == "cnn":
+            quantized_t = quantized.transpose(2,1)
+            x = self.to_hidden(quantized_t)
+            x = x.transpose(2,1) 
+            x = x.mean(dim = 1)
+            x = self.mlp_head(x)
+        elif self.model_type =="transformer":
+            x = self.transformer(quantized)
+            x = x.mean(dim = 1)
+            x = self.mlp_head2(x)
+        elif self.model_type =="cnn_transformer":
+            quantized_t = quantized.transpose(2,1)
+            x = self.to_hidden(quantized_t)
+            x = x.transpose(2,1)      
+            x = self.cnn_transformer(x)
+            x = x.mean(dim = 1)
+            x = self.mlp_head(x)
+    
         
-        # encoded = rearrange(encoded, 'b c t -> b t c')
-        # quant, encoding_indices, commit_loss = self.vae.vq(encoded) 
+        return x, encoding_indices, quantized
+
+    
+    def predict(self, X):
+        if isinstance(X, np.ndarray):
+            X = torch.from_numpy(X).to(device)
+            X = X.unsqueeze(1)
+        X = tensor(X, dtype=torch.float32)
+        X = X.cuda()
+        ds = TensorDataset(X)
+        dl = DataLoader(ds, batch_size=256, shuffle=False, drop_last=False)
+
+        """Evaluate the given data loader on the model and return predictions"""
+        result = None
+        recon = None
+        with torch.no_grad():
+            for x in dl:
+                original = x[0].squeeze(1).long()
+                x = self.embedding(original)
+                quantized = x.view(x.shape[0], -1, x.shape[-1])
+                
+                if self.model_type == "cnn":
+                    quantized_t = quantized.transpose(2,1)
+                    x = self.to_hidden(quantized_t)
+                    x = x.transpose(2,1) 
+                    x = x.mean(dim = 1)
+                    x = self.mlp_head(x)
+                elif self.model_type =="transformer":
+                    x = self.transformer(quantized)
+                    x = x.mean(dim = 1)
+                    x = self.mlp_head2(x)
+                elif self.model_type =="cnn_transformer":
+                    quantized_t = quantized.transpose(2,1)
+                    x = self.to_hidden(quantized_t)
+                    x = x.transpose(2,1)      
+                    x = self.cnn_transformer(x)
+                    x = x.mean(dim = 1)
+                    x = self.mlp_head(x)
+                
+                x = x.cpu().detach().numpy()
+                #decode indices
+                x_recon = self.vae.indices_to_recon(original)
+                x_recon = x_recon.cpu().detach().numpy()        
+
+                recon = x_recon if recon is None else np.concatenate((recon, x_recon), axis=0)
+                result = x if result is None else np.concatenate((result, x), axis=0)
+                
+        return result, recon
+    
+    def mask_region(self, img):
+ 
+        #Zero Padding        
+        padding = (0, 16)
+        img = F.pad(img, padding, "constant", 0)
         
-        #embed codebooks
-        
-        quantized = self.embedding(encoding_indices) 
-        
-        quantized = quantized.transpose(2,1)
-        
-        x = self.to_hidden(quantized)
-        
-        x = x.transpose(2,1)
-        x = x.mean(dim = 1)
-        
-        # x_recon = self.vae(img)[0]
+        img = img.unsqueeze(1)
+         #convert numpy to tensor
+        if isinstance(img, np.ndarray):
+            img = torch.from_numpy(img).to(device)
+            quantized = self.embedding(img)
+            quantized = quantized.transpose(2,1)
+            x = self.to_hidden(quantized)
+            x = x.transpose(2,1) 
+            x = x.mean(dim = 1)
+            
+            return self.mlp_head(x)
+
+        encoded = self.vae.encoder(img.float()) 
+
+        t = encoded.shape[-1] 
+
+        encoded = rearrange(encoded, 'b c t -> b t c') 
+        quantized, encoding_indices, commit_loss = self.vae.vq(encoded)
+        masked_regions = []
         
         return self.mlp_head(x), encoding_indices, quantized
     
@@ -136,7 +216,7 @@ class VQ_Classifier(nn.Module):
         for i in range(encoding_indices.shape[2]):
             mask_indices,_ = torch.mode(encoding_indices[:,-1,i])
             masked_regions.append(mask_indices)
-        
+
         return masked_regions
     
     def forward(self, img):
