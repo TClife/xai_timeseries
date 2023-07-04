@@ -106,7 +106,39 @@ class VQ_Classifier(nn.Module):
         # x_recon = self.vae(img)[0]
         
         return self.mlp_head(x), encoding_indices, quantized
+    
+    def mask_region(self, img):
+     
+        #Zero Padding        
+        padding = (0, 16)
+        img = F.pad(img, padding, "constant", 0)
         
+        img = img.unsqueeze(1)
+         #convert numpy to tensor
+        if isinstance(img, np.ndarray):
+            img = torch.from_numpy(img).to(device)
+            quantized = self.embedding(img)
+            quantized = quantized.transpose(2,1)
+            x = self.to_hidden(quantized)
+            x = x.transpose(2,1) 
+            x = x.mean(dim = 1)
+            
+            return self.mlp_head(x)
+
+        encoded = self.vae.encoder(img.float()) 
+
+        t = encoded.shape[-1] 
+
+        encoded = rearrange(encoded, 'b c t -> b t c') 
+        quantized, encoding_indices, commit_loss = self.vae.vq(encoded)
+        masked_regions = []
+        
+        for i in range(encoding_indices.shape[2]):
+            mask_indices,_ = torch.mode(encoding_indices[:,-1,i])
+            masked_regions.append(mask_indices)
+        
+        return masked_regions
+    
     def forward(self, img):
         #convert numpy to tensor
         if isinstance(img, np.ndarray):
@@ -125,20 +157,37 @@ class VQ_Classifier(nn.Module):
 
         encoded = rearrange(encoded, 'b c t -> b t c') 
         quantized, encoding_indices, commit_loss = self.vae.vq(encoded)
-        
+        print(len(img))
         if self.auc_classification:
+            new_tensor=[]
             #create a mask tensor
-            new_tensor = torch.full_like(encoding_indices, self.mask, device=device)        
-            
-            for i in range(len(self.positions)):
-                new_tensor[:,self.positions[i]] = encoding_indices[:,self.positions[i]] 
-            
+            for idx in range(len(img)):
+                for num in range(len())
+                tmp = torch.full_like(encoding_indices[idx], self.mask, device=device)    #12*num_quantizer
+                print(f"tmp:{tmp}")
+                print(f"tmp shape:{tmp.shape}")
+                for i in range(len(self.positions)):
+                     #encoding indices 80*12*2
+                    try:
+                        tmp[self.positions[i],0] = encoding_indices[idx,self.positions[i],0] 
+                        tmp[self.positions[i],1] = encoding_indices[idx,self.positions[i],1]
+                    
+                    except:
+                        continue
+                new_tensor.append([tmp.cpu().numpy()])
+            #print(f"new_tensor:{new_tensor}")
+            new_tensor = torch.LongTensor(new_tensor).to(device)
+            #print(f"after adding:{new_tensor.shape},{new_tensor}")
             quantized = self.embedding(new_tensor)
-        
+            #print(f"embedding shape:{quantized.shape}")
+            quantized = quantized.reshape(len(img),-1,64)
+            #print(f"quanitzed:{quantized.shape}")
         else:
             #embed codebooks
+            #print(f"else case:{encoding_indices[0]}")
             quantized = self.embedding(encoding_indices)
             quantized = quantized.view(quantized.shape[0], -1, quantized.shape[-1])
+            #print(f"quantized:{quantized.shape}")
             
 
         if self.model_type == "cnn":

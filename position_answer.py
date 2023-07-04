@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import os 
 import pandas as pd
-from classification_unofficial import VQVAE_Conv
 import argparse                 
 import sklearn 
 import numpy as np 
@@ -20,7 +19,9 @@ import itertools
 import os 
 import copy
 import warnings
-from args_dataset import makedata
+from dataload import makedata
+from classifier import ClassifierTrainer
+from models import VQ_Classifier
 import itertools
 warnings.filterwarnings("ignore", category=UserWarning)
 os.environ["CUDA_VISIBLE_DEVICES"] = "5"
@@ -32,24 +33,28 @@ torch.manual_seed(911)
 if __name__ =='__main__':
     parser =argparse.ArgumentParser()
     parser.add_argument('--labels', type=int, default=1)
-    parser.add_argument('--batch_size', type=int, default=256)
-    parser.add_argument('--dataset', type =str,default='hard_mitbih, flat, peak')
+    parser.add_argument('--batch_size', type=int, default=1)
+    parser.add_argument('--dataset', type =str,default='mitbih, flat, peak')
     parser.add_argument('--num_classes', type=int, default=2)
-    #parser.add_argument('--vqvae_model', type=str, default ="/home/hschung/saved_models/timeseries/flat/model_360.pt") 
+    parser.add_argument('--vqvae_model', type=str, default ="/home/hschung/saved_models/timeseries/flat/model_360.pt") 
     parser.add_argument('--model_type',type =str,default='cnn_transformer', help='cnn_transformer, transformer, cnn')
     parser.add_argument('--device', type =str,default='3')
     parser.add_argument('--auc_classification', type=bool, default=True)
-    #parser.add_argument('--mask_code', default=50)
+    parser.add_argument('--classification_model', type=str)
+    parser.add_argument('--mask_code', default=50)
     parser.add_argument('--len_position', type=int, default=13)
+    parser.add_argument('--num_quantizers', type=int, default=[1,2,4,8])
     args = parser.parse_args()
     
     os.environ["CUDA_VISIBLE_DEVICES"] = args.device
     len_position=args.len_position
     dataset =args.dataset
     classifier = args.model_type
-
-    train_loader, val_loader, test_loader, data_loader = makedata(dataset, batchsize =1)
-
+    classification_model =  args.classification_model
+    vqvae_model = args.vqvae_model
+    ds = makedata(dataset)
+    
+    '''
     if dataset == 'flat':
         vqvae_model = "/home/hschung/saved_models/timeseries/flat/model_360.pt"
         if classifier == 'cnn_transformer':
@@ -70,7 +75,7 @@ if __name__ =='__main__':
             classification_model ="/home/hschung/saved_models/timeseries/peak_clas/classification_170.pt"
             
             
-    elif dataset =='hard_mitbih':
+    elif dataset =='mitbih':
         vqvae_model ="/home/hschung/saved_models/timeseries/hard_mitbih_sf/model_1170.pt"
         if classifier == 'cnn_transformer':
             classification_model="/home/hschung/saved_models/timeseries/hard_mitbih_clas_cnn_transf/classification_190.pt"
@@ -85,25 +90,34 @@ if __name__ =='__main__':
             classification_model="/home/hschung/saved_models/timeseries/ptb_cnn/classification_870.pt"
     else:
         print("wrong name")
-        
-
-    training_loader, validation_loader, test_loader, all_loader = makedata(args.dataset,batchsize=args.batch_size)
+    '''
+    train_size = int(0.8 * len(ds))
+    val_size = int(0.1 * len(ds))
+    test_size = len(ds) - train_size - val_size
+    train_dataset, val_dataset, test_dataset = random_split(ds, [train_size, val_size, test_size])
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True)
+    test_loader = DataLoader(test_dataset, batch_size = args.batch_size, shuffle=False, pin_memory=True)
+    
     #Find masking token
     end_tokens={}
-    conv_net = VQVAE_Conv(
-                n_emb = 64,
-                num_classes =args.num_classes,
-                vqvae_model=vqvae_model,
-                positions = 0,
-                mask = 0,
-                auc_classification=False,
-                model_type = classifier
-            )
-    conv_net.load_state_dict(torch.load(classification_model)["model_state_dict"])
-    conv_net = conv_net.to(device)
+    
+    conv_net = VQ_Classifier(
+        num_classes = args.num_classes,
+        vqvae_model = args.vqvae_model,
+        positions = args.positions,
+        mask = args.mask,
+        auc_classification = True,
+        model_type = args.model_type
+    ).to(device)
+    
+    a = torch.load(args.classification_model)
+    conv_net.load_state_dict(a['model_state_dict'])
+    
     for param in conv_net.parameters():
-        param.requires_grad = False        
-    conv_net.eval()   
+        param.requires_grad = False
+    
+    conv_net.eval()
     
     with torch.no_grad():
         for idx, (data, labels) in enumerate(test_loader):
@@ -111,6 +125,7 @@ if __name__ =='__main__':
             labels = labels.type(torch.LongTensor)
             data, labels = data.to(device), labels.to(device)
             output, codebook_tokens, recon, input= conv_net(data)
+            print(f"codebook indices:{codebook_tokens}")
             for token in codebook_tokens:
                 try:
                     end_tokens[token[-1].item()]+=1
@@ -140,7 +155,7 @@ if __name__ =='__main__':
                 vqvae_model=vqvae_model,
                 positions = positions,
                 mask = mask_code,
-                auc_classification=args.auc_classification,
+                auc_classification=True,
                 model_type = classifier
             )
             print(positions)
