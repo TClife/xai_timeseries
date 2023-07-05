@@ -19,6 +19,7 @@ import numpy as np
 import pdb
 from lime import explanation
 from argparse import ArgumentParser
+from collections import Counter
 from math import comb 
 from data import load_data
 from models import VQ_Classifier
@@ -31,10 +32,10 @@ parser = ArgumentParser()
 parser.add_argument('--labels', type=int, default=0)
 parser.add_argument('--num_features', type=int, default=2)
 parser.add_argument('--batch_size', type=int, default=1)
-parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb_conv_transf_nonoverlap_128_8/model_290.pt")
-parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/vqvae_models/ptb_residual_vqvae_nonoverlap_16_8/model_300.pt")
+parser.add_argument('--classification_model', type=str, default="/home/smjo/xai_timeseries/vqvae/saved_models/classification/mitbih/8/cnn_transformer.pt")
+parser.add_argument('--vqvae_model', default = "/home/smjo/xai_timeseries/vqvae/saved_models/hard_mitbih/8/model_290.pt")
 parser.add_argument('--task', type=str, default='xai', help="Task being done")
-parser.add_argument('--dataset', type=str, default="ptb")
+parser.add_argument('--dataset', type=str, default="mitbih")
 parser.add_argument('--plot_dataset', type=bool, default=True)
 parser.add_argument('--feature_selection', type=str, default='highest_weights')
 parser.add_argument('--model_type', type=str, default="cnn_transformer")
@@ -636,3 +637,10 @@ label_save = {
 } 
 
 torch.save(label_save, "./ecg_sample_{}_{}_{}_{}/label{}/model_type_{}_codebooks_weights.pt".format(args.dataset, args.feature_selection, args.model_type, args.quantizer, args.labels, args.model_type))   
+
+#positional rankings 
+ptb_lime_quantizer1 = torch.load("./ecg_sample_{}_{}_{}_{}/label{}/model_type_{}_codebooks_weights.pt".format(args.dataset, args.feature_selection, args.model_type, args.quantizer, args.labels, args.model_type))
+top_indices = [int(item) for sublist in ptb_lime_quantizer1['positions'] for item in sublist]
+count = Counter(top_indices).most_common()
+print("./ecg_sample_{}_{}_{}_{}/label{}/model_type_{}_codebooks_weights.pt".format(args.dataset, args.feature_selection, args.model_type, args.quantizer, args.labels, args.model_type))
+print("Positional Rankings: ", count)
