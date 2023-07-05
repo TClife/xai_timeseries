@@ -14,7 +14,7 @@ import torch.optim as optim
 import math 
 from residual_vqvae import Residual_VQVAE
 import numpy as np 
-from tqdm import tqdm,sleep
+from tqdm import tqdm
 
 torch.set_num_threads(32)
 torch.manual_seed(911)
