@@ -21,12 +21,14 @@ torch.manual_seed(911)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class VQ_Classifier(nn.Module):
-    def __init__(self, *, num_classes, vqvae_model, positions, mask, auc_classification, model_type):
+    def __init__(self, *, num_classes, vqvae_model, positions, mask, auc_classification=False, auc_classification_eval=False, model_type, len_position):
         super().__init__()
         self.model_type = model_type
         self.positions = positions
+        self.len_position = len_position
         self.mask = mask
         self.auc_classification = auc_classification
+        self.auc_classification_eval = auc_classification_eval
         #load vqvae model 
         vae_path = vqvae_model
         load_dict = torch.load(vae_path)["model_state_dict"]
@@ -193,45 +195,124 @@ class VQ_Classifier(nn.Module):
 
         return masked_regions
     
-    def forward(self, img):
-        #convert numpy to tensor
-        if isinstance(img, np.ndarray):
-            img = torch.from_numpy(img).to(device)
-            quantized = self.embedding(img)
-            quantized = quantized.transpose(2,1)
-            x = self.to_hidden(quantized)
-            x = x.transpose(2,1) 
-            x = x.mean(dim = 1)
+    def position_answer(self, img, unmasked_positions, labels, selected_positions):
+        encoded = self.vae.encoder(img.float()) 
+        
+        t = encoded.shape[-1]
+         
+        encoded = rearrange(encoded, 'b c t -> b t c') 
+        quantized, encoding_indices, commit_loss = self.vae.vq(encoded)    
+        
+        masked_tensor = torch.zeros(encoding_indices.shape, dtype=int, device=device)
+        for i in range(len(self.mask)):
+            masked_tensor[:,:,i] = self.mask[i]
+        
+        if not selected_positions:
             
-            return self.mlp_head(x)
+            position_scores = []
+            for i in range(self.len_position):
+                new_tensor = masked_tensor.clone()
+                new_tensor[:,i,:] = encoding_indices[:,i,:]
+                result = None
+                x = self.embedding(new_tensor)
+                quantized = x.view(x.shape[0], -1, x.shape[-1])
+                with torch.no_grad():
+                    if self.model_type == "cnn":
+                        quantized_t = quantized.transpose(2,1)
+                        x = self.to_hidden(quantized_t)
+                        x = x.transpose(2,1) 
+                        x = x.mean(dim = 1)
+                        x = self.mlp_head(x)
+                    elif self.model_type =="transformer":
+                        x = self.transformer(quantized)
+                        x = x.mean(dim = 1)
+                        x = self.mlp_head2(x)
+                    elif self.model_type =="cnn_transformer":
+                        quantized_t = quantized.transpose(2,1)
+                        x = self.to_hidden(quantized_t)
+                        x = x.transpose(2,1)      
+                        x = self.cnn_transformer(x)
+                        x = x.mean(dim = 1)
+                        x = self.mlp_head(x)
+                    
+                    x = torch.sigmoid(x)
+                    
+                    position_scores.append(torch.mean(x[torch.arange(labels.shape[0]), labels]))
+            max_position = torch.argmax(torch.tensor(position_scores))
 
+        else:
+            
+            #fix selected positions 
+            new_tensor = masked_tensor.clone()
+            for position in selected_positions:
+                new_tensor[:,position,:] = encoding_indices[:,position,:]
+            
+            position_list = torch.arange(self.len_position)
+            designated_positions = torch.tensor(selected_positions)
+            
+            created_mask = torch.isin(position_list, designated_positions)
+            created_mask = ~created_mask
+            positions_consider = position_list[created_mask]
+            
+            position_scores = []
+            for i in positions_consider:
+                altered_tensor = new_tensor.clone()
+                altered_tensor[:,i,:] = encoding_indices[:,i,:]
+                result = None
+                x = self.embedding(altered_tensor)
+                quantized = x.view(x.shape[0], -1, x.shape[-1])
+                with torch.no_grad():
+                    if self.model_type == "cnn":
+                        quantized_t = quantized.transpose(2,1)
+                        x = self.to_hidden(quantized_t)
+                        x = x.transpose(2,1) 
+                        x = x.mean(dim = 1)
+                        x = self.mlp_head(x)
+                    elif self.model_type =="transformer":
+                        x = self.transformer(quantized)
+                        x = x.mean(dim = 1)
+                        x = self.mlp_head2(x)
+                    elif self.model_type =="cnn_transformer":
+                        quantized_t = quantized.transpose(2,1)
+                        x = self.to_hidden(quantized_t)
+                        x = x.transpose(2,1)      
+                        x = self.cnn_transformer(x)
+                        x = x.mean(dim = 1)
+                        x = self.mlp_head(x)
+                    
+                    x = torch.sigmoid(x)
+                    
+                    position_scores.append(torch.mean(x[torch.arange(labels.shape[0]), labels]))
+            max_position = torch.argmax(torch.tensor(position_scores))
+            max_position = positions_consider[max_position]
+            
+        
+        selected_positions.append(max_position)
+        return selected_positions
+                    
+    
+    def forward(self, img):
         encoded = self.vae.encoder(img.float()) 
 
         t = encoded.shape[-1] 
 
         encoded = rearrange(encoded, 'b c t -> b t c') 
-        quantized, encoding_indices, commit_loss = self.vae.vq(encoded)
-
-        if self.auc_classification:
-            new_tensor=[]
+        quantized, encoding_indices, commit_loss = self.vae.vq(encoded)            
+        
+        if self.auc_classification_eval:
             #create a mask tensor
-            for idx in tqdm(range(len(img))):
-                tmp = torch.empty(encoding_indices[idx].shape, dtype = int)          #12*num_quantizers
-                for num in range(encoding_indices[idx].shape[1]):
-                    #tmp = torch.full_like(encoding_indices[idx][:,num], self.mask[num], device=device)    #12
-                    tmp[:,num] = self.mask[num]
-                    for i in range(len(self.positions)):
-                        #encoding indices 80*12*2
-                        try:
-                            tmp[:,self.positions[i]] = encoding_indices[idx,:,self.positions[i]] 
-                        except:
-                            continue
-                new_tensor.append([tmp.cpu().numpy()])
-          
-            new_tensor = torch.LongTensor(new_tensor).to(device)
+            tmp = torch.zeros(encoding_indices.shape, dtype=int, device=device)
+            for i in range(len(self.mask)):
+                tmp[:,:,i] = self.mask[i]
+            
+            new_tensor = tmp
+            
+            for i in range(len(self.positions)):
+                new_tensor[:,self.positions[i], :] = encoding_indices[:,self.positions[i], :] 
+            
             quantized = self.embedding(new_tensor)
             quantized = quantized.reshape(len(img),-1,64)
-
+            
         else:
             #embed codebooks
             #print(f"else case:{encoding_indices[0]}")
