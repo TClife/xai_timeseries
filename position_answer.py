@@ -24,12 +24,13 @@ from classifier import ClassifierTrainer
 from models import VQ_Classifier
 import itertools
 from data import load_data
+from argument import model_path
 
 
 if __name__ =='__main__':
     parser =argparse.ArgumentParser()
     parser.add_argument('--labels', type=int, default=1)
-    parser.add_argument('--batch_size', type=int, default=1)
+    parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--dataset', type =str,default='mitbih, flat, peak')
     parser.add_argument('--num_classes', type=int, default=2)
     parser.add_argument('--vqvae_model', type=str, default ="/home/hschung/saved_models/timeseries/flat/model_360.pt") 
@@ -42,12 +43,13 @@ if __name__ =='__main__':
     parser.add_argument('--num_quantizers', type=int, default=[1,2,4,8])
     args = parser.parse_args()
     
+    
+
     os.environ["CUDA_VISIBLE_DEVICES"] = args.device
     len_position=args.len_position
     dataset =args.dataset
     classifier = args.model_type
-    classification_model =  args.classification_model
-    vqvae_model = args.vqvae_model
+    classification_model, vqvae_model = model_path(args.dataset, args.model_type, args.num_quantizers)
     ds = load_data(args.dataset, task = 'classification')
     
     train_size = int(0.8 * len(ds))
@@ -60,7 +62,7 @@ if __name__ =='__main__':
     
     #Find masking token
     end_tokens={}
-
+    
     conv_net = VQ_Classifier(
         num_classes = 2,
         vqvae_model = vqvae_model,
@@ -128,7 +130,7 @@ if __name__ =='__main__':
         arr.remove(answer[f"top_{cnt}"])
         
     print(f"roc_auc_scores:{roc_auc_scores}")
-    print()
+    print(answer.values())
                 
     
 
