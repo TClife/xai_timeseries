@@ -197,24 +197,24 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser() 
     #Model Configuration
     parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/flat_conv_transf_nonoverlap_128_8/model_290.pt")
-    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/vqvae_models/flat_vqvae_nonoverlap_16_8/model_300.pt")  
+    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/ptb/8/model_200.pt")  
     parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--lr', type=float, default=2e-4)
-    parser.add_argument('--n_epochs', type=int, default=300)
+    parser.add_argument('--n_epochs', type=int, default=3000)
     parser.add_argument('--n_emb', type=int, default=64)
     parser.add_argument('--mode', type=str, default='train', choices=['test', 'train'])
     parser.add_argument('--task', type=str, default='classification', help="Task being done")
-    parser.add_argument('--dataset', type=str, default='flat', help="Dataset to train on")
+    parser.add_argument('--dataset', type=str, default='ptb', help="Dataset to train on")
     parser.add_argument('--auc_classification', type=bool, default=False)
-    parser.add_argument('--model_type', type=str, default="cnn_transformer")
+    parser.add_argument('--model_type', type=str, default="cnn")
     parser.add_argument('--num_classes', type=int, default=2)
     parser.add_argument('--positions', type=int, default=0)
     parser.add_argument('--mask', type=int, default=0)
-    parser.add_argument('--transformer_layers', type=int, default=2)
-    parser.add_argument('--num_quantizers', type=int, default=[1,2,4,8])
+    parser.add_argument('--len_position', type=int, default=12)
+    parser.add_argument('--num_quantizers', type=int, default=8)
 
     #directories 
-    parser.add_argument('--savedir', type=str, default="/home/smjo/xai_timeseries/vqvae/saved_models/classification/")
+    parser.add_argument('--savedir', type=str, default="/home/hschung/xai/xai_timeseries/classification_models")
 
 
     args = parser.parse_args()
@@ -227,7 +227,8 @@ if __name__ == '__main__':
         positions = args.positions,
         mask = args.mask,
         auc_classification = args.auc_classification,
-        model_type = args.model_type
+        model_type = args.model_type,
+        len_position = args.len_position
     ).to(device)
 
     if args.mode == "train":

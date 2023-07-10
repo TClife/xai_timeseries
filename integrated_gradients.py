@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 from captum.attr import LayerIntegratedGradients
 
 torch.set_num_threads(32) 
-torch.manual_seed(911) 
+torch.manual_seed(112) 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #Create args parser for labels and batch size 
@@ -15,14 +15,14 @@ parser = ArgumentParser()
 parser.add_argument('--labels', type=int, default=0)
 parser.add_argument('--num_features', type=int, default=2)
 parser.add_argument('--batch_size', type=int, default=256)
-parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb_conv_nonoverlap_128_8/model_290.pt")
-parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/vqvae_models/ptb_residual_vqvae_nonoverlap_16_8/model_300.pt")
+parser.add_argument('--vqvae_model', default = "/home/smjo/xai_timeseries/vqvae/saved_models/hard_mitbih/8/model_290.pt")
+parser.add_argument('--classification_model', type=str, default="/home/smjo/xai_timeseries/vqvae/saved_models/classification/mitbih/8/cnn.pt")
 parser.add_argument('--task', type=str, default='xai', help="Task being done")
-parser.add_argument('--dataset', type=str, default="ptb")
+parser.add_argument('--dataset', type=str, default="mitbih")
 parser.add_argument('--plot_dataset', type=bool, default=True)
-parser.add_argument('--feature_selection', type=str, default='highest_weights')
 parser.add_argument('--model_type', type=str, default="cnn")
 parser.add_argument('--auc_classification', type=bool, default=False)
+parser.add_argument('--len_position', type=int, default=12)
 
 args = parser.parse_args() 
 
@@ -47,7 +47,8 @@ net = VQ_Classifier(
     positions = class_args.positions,
     mask = class_args.mask,
     auc_classification = args.auc_classification,
-    model_type = class_args.model_type
+    model_type = class_args.model_type,
+    len_position = args.len_position
 ).to(device)
 
 #load classification model
