@@ -12,8 +12,8 @@ def load_data(data_name, task):
         if data_name=='ptb':
             class0_pth = './data/ptbdb_normal.csv'
             class1_pth = './data/ptbdb_abnormal.csv'
-            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)
-            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)
+            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)[:, :187]
+            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)[:, :187]
             class0_label = torch.zeros(len(class0_data))
             class1_label = torch.ones(len(class1_data))
 
@@ -21,7 +21,7 @@ def load_data(data_name, task):
             labels = torch.cat((class0_label, class1_label), dim=0)
             
             #Zero Padding        
-            padding = (0, 20)
+            padding = (0, 21)
             data = F.pad(data, padding, "constant", 0)
             
         elif data_name=='flat':
@@ -81,8 +81,8 @@ def load_data(data_name, task):
         if data_name=='ptb':
             class0_pth = './data/ptbdb_normal.csv'
             class1_pth = './data/ptbdb_abnormal.csv'
-            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)[:400]
-            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)[:400]
+            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)[:400, :187]
+            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)[:400, :187]
             class0_label = torch.zeros(len(class0_data))
             class1_label = torch.ones(len(class1_data))
 
@@ -90,7 +90,7 @@ def load_data(data_name, task):
             labels = torch.cat((class0_label, class1_label), dim=0)
             
             #Zero Padding        
-            padding = (0, 4)
+            padding = (0, 5)
             data = F.pad(data, padding, "constant", 0)
             
         elif data_name=='flat':
@@ -136,14 +136,14 @@ def load_data(data_name, task):
             labels = torch.cat((v_label,f_label), dim=0)
 
             #Binary classification 
-        labels = F.one_hot(labels.long())
+        # labels = F.one_hot(labels.long())
             
     elif task == "xai":
         if data_name=='ptb':
             class0_pth = './data/ptbdb_normal.csv'
             class1_pth = './data/ptbdb_abnormal.csv'
-            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)[:400]
-            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)[:400]
+            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)[:400, :187]
+            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)[:400, :187]
             class0_label = torch.zeros(len(class0_data))
             class1_label = torch.ones(len(class1_data))
 
@@ -151,7 +151,7 @@ def load_data(data_name, task):
             labels = torch.cat((class0_label, class1_label), dim=0)
             
             #Zero Padding        
-            padding = (0, 4)
+            padding = (0, 5)
             data = F.pad(data, padding, "constant", 0)
             
         elif data_name=='flat':
@@ -201,7 +201,7 @@ def load_data(data_name, task):
             print("Wrong data name")    
 
         #Binary classification 
-        labels = F.one_hot(labels.long())
+        # labels = F.one_hot(labels.long())
     
     print(f"X shape:{data.shape}, y shape:{labels.shape}")
     

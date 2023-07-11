@@ -18,6 +18,7 @@ from data import load_data
 import sklearn 
 import scikitplot as skplt
 from dataload import makedata
+from models import resnet18, resnet34
 torch.set_num_threads(32)
 torch.manual_seed(911) 
 device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
@@ -67,7 +68,7 @@ class ClassifierTrainer():
                 labels = labels.float()
                 data, labels = data.to(device), labels.to(device)
                 output, indices, recon, quantized= self.model(data) 
-                loss = criterion(output, labels) 
+                loss = criterion(output.squeeze(1), labels) 
                 
                 optimizer.zero_grad()
                 loss.backward()
@@ -81,25 +82,20 @@ class ClassifierTrainer():
             
             self.model.eval()
             validation_loss = 0
-            correct = 0
-            total = 0
             for _, (data, labels) in enumerate(self.val_loader):
                 data = data.unsqueeze(1).float()
                 labels = labels.float()
                 data, labels = data.to(device), labels.to(device)
                 output, net_endoces, recon,_= self.model(data)
-                _,predicted = torch.max(output, 1)
-                total += labels.size(0)
-                correct += (predicted == torch.argmax(labels, dim=1)).sum().item()
-                loss = criterion(output, labels) 
-            accuracy = correct / total
-
+                loss = criterion(output.squeeze(1), labels) 
+                
+            score = sklearn.metrics.roc_auc_score(labels.cpu().detach().numpy(), output.cpu().detach().numpy())
             validation_loss += loss.item() * data.size(0)
             validation_loss = validation_loss / len(self.val_loader.sampler)
             total_val_loss.append(validation_loss)
-            wandb.log({"Validation loss": validation_loss, "Accuracy": accuracy})
+            wandb.log({"Validation loss": validation_loss, "Score": score})
             if epoch % 10 == 0:
-                print(epoch, accuracy)
+                print(epoch, score)
             if best_val_loss > total_val_loss[-1]:
                 best_val_loss = total_val_loss[-1]
                 best_model = copy.deepcopy(self.model)
@@ -144,9 +140,8 @@ class ClassifierTrainer():
                 data, labels = data.to(device), labels.to(device)
                 output, codebook_tokens, recon, input= self.model(data)
                 #calculate auroc curve
-                labels = torch.argmax(labels, dim=1)
-                fpr, tpr, thresholds = sklearn.metrics.roc_curve(labels.cpu(), output[:,1].cpu())
-                score = sklearn.metrics.roc_auc_score(labels.cpu(), output[:,1].cpu())
+                fpr, tpr, thresholds = sklearn.metrics.roc_curve(labels.cpu(), output.cpu())
+                score = sklearn.metrics.roc_auc_score(labels.cpu(), output.cpu())
                 total_score.append(score)
                 print(score)
             
@@ -196,40 +191,52 @@ class ClassifierTrainer():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser() 
     #Model Configuration
-    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/flat_conv_transf_nonoverlap_128_8/model_290.pt")
-    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/ptb/8/model_200.pt")  
-    parser.add_argument('--batch_size', type=int, default=512)
+    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb/8/resnet.pt")
+    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/ptb/8/model_110.pt")  
+    parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=2e-4)
     parser.add_argument('--n_epochs', type=int, default=3000)
     parser.add_argument('--n_emb', type=int, default=64)
-    parser.add_argument('--mode', type=str, default='train', choices=['test', 'train'])
+    parser.add_argument('--mode', type=str, default='test', choices=['test', 'train'])
     parser.add_argument('--task', type=str, default='classification', help="Task being done")
     parser.add_argument('--dataset', type=str, default='ptb', help="Dataset to train on")
     parser.add_argument('--auc_classification', type=bool, default=False)
-    parser.add_argument('--model_type', type=str, default="cnn")
-    parser.add_argument('--num_classes', type=int, default=2)
+    parser.add_argument('--model_type', type=str, default="resnet")
+    parser.add_argument('--num_classes', type=int, default=1)
     parser.add_argument('--positions', type=int, default=0)
     parser.add_argument('--mask', type=int, default=0)
     parser.add_argument('--len_position', type=int, default=12)
     parser.add_argument('--num_quantizers', type=int, default=8)
 
     #directories 
-    parser.add_argument('--savedir', type=str, default="/home/hschung/xai/xai_timeseries/classification_models")
+    parser.add_argument('--savedir', type=str, default="./classification_models")
 
 
     args = parser.parse_args()
     
     classifier_train = ClassifierTrainer(args)
 
-    net = VQ_Classifier(
-        num_classes = args.num_classes,
-        vqvae_model = args.vqvae_model,
-        positions = args.positions,
-        mask = args.mask,
-        auc_classification = args.auc_classification,
-        model_type = args.model_type,
-        len_position = args.len_position
-    ).to(device)
+    if args.model_type == "resnet":
+        net = resnet34(
+            num_classes = args.num_classes,
+            vqvae_model = args.vqvae_model,
+            positions = args.positions,
+            mask = args.mask,
+            auc_classification = args.auc_classification,
+            model_type = args.model_type,
+            len_position = args.len_position
+        ).to(device)
+    
+    else:
+        net = VQ_Classifier(
+            num_classes = args.num_classes,
+            vqvae_model = args.vqvae_model,
+            positions = args.positions,
+            mask = args.mask,
+            auc_classification = args.auc_classification,
+            model_type = args.model_type,
+            len_position = args.len_position
+        ).to(device)
 
     if args.mode == "train":
         wandb.login()
