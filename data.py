@@ -132,8 +132,8 @@ def load_data(data_name, task):
             f_label = torch.tensor(torch.load('./data/mit_bih_dataset/f_labels.pt'))-2
             q_label = torch.tensor(torch.load('./data/mit_bih_dataset/q_labels.pt'))-3
 
-            data = torch.cat((v_set,f_set), dim=0)
-            labels = torch.cat((v_label,f_label), dim=0)
+            data = torch.cat((v_set,q_set), dim=0)
+            labels = torch.cat((v_label,q_label), dim=0)
 
             #Binary classification 
         # labels = F.one_hot(labels.long())
@@ -185,17 +185,17 @@ def load_data(data_name, task):
             s_set = torch.tensor(torch.load(mit_path + 's_data.pt'))
             v_set = torch.tensor(torch.load(mit_path + 'v_data.pt'))[:400]
             f_set = torch.tensor(torch.load(mit_path + 'f_data.pt'))[:400]
-            q_set = torch.tensor(torch.load(mit_path + 'q_data.pt'))
+            q_set = torch.tensor(torch.load(mit_path + 'q_data.pt'))[:400]
             
             #labels
             n_label = torch.tensor(torch.load(mit_path + 'n_labels.pt'))
             s_label = torch.tensor(torch.load(mit_path + 's_labels.pt'))
             v_label = torch.tensor(torch.load(mit_path + 'v_labels.pt'))[:400]-2
             f_label = torch.tensor(torch.load(mit_path + 'f_labels.pt'))[:400]-2
-            q_label = torch.tensor(torch.load(mit_path + 'q_labels.pt'))
+            q_label = torch.tensor(torch.load(mit_path + 'q_labels.pt'))[:400]-3
 
-            data = torch.cat((v_set,f_set), dim=0)
-            labels = torch.cat((v_label,f_label), dim=0)
+            data = torch.cat((v_set,q_set), dim=0)
+            labels = torch.cat((v_label,q_label), dim=0)
             
         else:
             print("Wrong data name")    
