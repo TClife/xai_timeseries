@@ -35,10 +35,22 @@ parser.add_argument('--model_type', type=str, default="resnet")
 parser.add_argument('--auc_classification', type=bool, default=False)
 parser.add_argument('--auc_classification_eval', type=bool, default=True)
 parser.add_argument('--len_position', type=int, default=12)
-parser.add_argument('--method', default= ["Ours"])
-parser.add_argument('--position_ranking', default = [[1,9,3,7,5,8,10,11,4,6,2,0]])
+parser.add_argument('--method', default= ["SHAP", "Ours", "IG", "LIME"])
+parser.add_argument('--position_ranking', default = [[3,6,2,7,1,0,5,10,9,4,11,8], [1,9,3,7,5,8,10,11,4,6,2,0], [3,7,6,0,1,5,2,4,8,9,10,11], [6,3,0,1,2,7,4,5,8,9,10,11]])
 
 args = parser.parse_args() 
+
+#dataset split 
+ds = load_data(args.dataset, args.task)
+
+# Split the dataset into training, validation, and test sets
+train_size = int(0.8 * len(ds))
+val_size = int(0.1 * len(ds))
+test_size = len(ds) - train_size - val_size
+train_dataset, val_dataset, test_dataset = random_split(ds, [train_size, val_size, test_size])
+training_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, pin_memory=True)
+validation_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True)
+test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True)
 
 #loop over methods and position rankings
 for method, position_ranking in zip(args.method, args.position_ranking):
@@ -56,16 +68,6 @@ for method, position_ranking in zip(args.method, args.position_ranking):
     roc_auc_scores = []
     pr_auc_scores = []
     for i in range(len(new_list)):
-        ds = load_data(args.dataset, args.task)
-
-        # Split the dataset into training, validation, and test sets
-        train_size = int(0.8 * len(ds))
-        val_size = int(0.1 * len(ds))
-        test_size = len(ds) - train_size - val_size
-        train_dataset, val_dataset, test_dataset = random_split(ds, [train_size, val_size, test_size])
-        training_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, pin_memory=True)
-        validation_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True)
-        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True)
 
         #load classification args 
         classification_model = torch.load(args.classification_model)
