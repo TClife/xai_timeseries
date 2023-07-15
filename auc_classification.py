@@ -2,7 +2,7 @@ import torch
 import numpy as np 
 import matplotlib.pyplot as plt 
 import pandas as pd
-from models import VQ_Classifier
+from models import VQ_Classifier, resnet34
 from data import load_data
 import argparse                 
 import sklearn 
@@ -26,18 +26,31 @@ parser = ArgumentParser()
 parser.add_argument('--labels', type=int, default=0)
 parser.add_argument('--num_features', type=int, default=2)
 parser.add_argument('--batch_size', type=int, default=80)
-parser.add_argument('--classification_model', type=str, default="/home/smjo/xai_timeseries/vqvae/saved_models/classification/mitbih/1/cnn.pt")
-parser.add_argument('--vqvae_model', default = "/home/smjo/xai_timeseries/vqvae/saved_models/hard_mitbih/1/model_280.pt")
+parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/mitbih/8/model_200.pt")
+parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/mitbih/8/resnet.pt")
 parser.add_argument('--task', type=str, default='xai', help="Task being done")
 parser.add_argument('--dataset', type=str, default="mitbih")
 parser.add_argument('--plot_dataset', type=bool, default=True)
-parser.add_argument('--model_type', type=str, default="cnn")
+parser.add_argument('--model_type', type=str, default="resnet")
 parser.add_argument('--auc_classification', type=bool, default=False)
 parser.add_argument('--auc_classification_eval', type=bool, default=True)
-parser.add_argument('--method', default= ["LIME", "Ours"])
-parser.add_argument('--position_ranking', default = [[0,4,3,1,2,5,6,7,8,9,10,11], [0,1,2,3,4,5,6,7,8,9,10,11]])
+parser.add_argument('--len_position', type=int, default=12)
+parser.add_argument('--method', default= ["SHAP", "Ours", "IG", "LIME"])
+parser.add_argument('--position_ranking', default = [[3,6,2,7,1,0,5,10,9,4,11,8], [1,9,3,7,5,8,10,11,4,6,2,0], [3,7,6,0,1,5,2,4,8,9,10,11], [6,3,0,1,2,7,4,5,8,9,10,11]])
 
 args = parser.parse_args() 
+
+#dataset split 
+ds = load_data(args.dataset, args.task)
+
+# Split the dataset into training, validation, and test sets
+train_size = int(0.8 * len(ds))
+val_size = int(0.1 * len(ds))
+test_size = len(ds) - train_size - val_size
+train_dataset, val_dataset, test_dataset = random_split(ds, [train_size, val_size, test_size])
+training_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, pin_memory=True)
+validation_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True)
+test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True)
 
 #loop over methods and position rankings
 for method, position_ranking in zip(args.method, args.position_ranking):
@@ -55,43 +68,64 @@ for method, position_ranking in zip(args.method, args.position_ranking):
     roc_auc_scores = []
     pr_auc_scores = []
     for i in range(len(new_list)):
-        ds = load_data(args.dataset, args.task)
-
-        # Split the dataset into training, validation, and test sets
-        train_size = int(0.8 * len(ds))
-        val_size = int(0.1 * len(ds))
-        test_size = len(ds) - train_size - val_size
-        train_dataset, val_dataset, test_dataset = random_split(ds, [train_size, val_size, test_size])
-        training_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, pin_memory=True)
-        validation_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True)
-        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=True)
 
         #load classification args 
         classification_model = torch.load(args.classification_model)
         class_args = classification_model['args']
-        #ECG Dataset
-        net = VQ_Classifier(
-            num_classes = class_args.num_classes,
-            vqvae_model = class_args.vqvae_model,
-            positions = new_list[i],
-            mask = class_args.mask,
-            auc_classification = args.auc_classification,
-            auc_classification_eval = args.auc_classification_eval,
-            model_type = class_args.model_type
-        ).to(device)
+        
+        if args.model_type == "resnet":
+            #ECG Dataset
+            net = resnet34(
+                num_classes = class_args.num_classes,
+                vqvae_model = class_args.vqvae_model,
+                positions = new_list[i],
+                mask = class_args.mask,
+                auc_classification = args.auc_classification,
+                auc_classification_eval = args.auc_classification_eval,
+                model_type = class_args.model_type,
+                len_position = args.len_position
+            ).to(device)
 
-        #find masking regions 
-        masked_regions = net.mask_region(ds.data[:64,:].to(device))
+            #find masking regions 
+            masked_regions = net.mask_region(ds.data[:64,:].to(device))
 
-        net = VQ_Classifier(
-            num_classes = class_args.num_classes,
-            vqvae_model = class_args.vqvae_model,
-            positions = new_list[i],
-            mask = masked_regions,
-            auc_classification = args.auc_classification,
-            auc_classification_eval = args.auc_classification_eval,
-            model_type = class_args.model_type
-        ).to(device)
+            net = resnet34(
+                num_classes = class_args.num_classes,
+                vqvae_model = class_args.vqvae_model,
+                positions = new_list[i],
+                mask = masked_regions,
+                auc_classification = args.auc_classification,
+                auc_classification_eval = args.auc_classification_eval,
+                model_type = class_args.model_type,
+                len_position = args.len_position
+            ).to(device)
+        
+        else: 
+            #ECG Dataset
+            net = VQ_Classifier(
+                num_classes = class_args.num_classes,
+                vqvae_model = class_args.vqvae_model,
+                positions = new_list[i],
+                mask = class_args.mask,
+                auc_classification = args.auc_classification,
+                auc_classification_eval = args.auc_classification_eval,
+                model_type = class_args.model_type,
+                len_position = args.len_position
+            ).to(device)
+
+            #find masking regions 
+            masked_regions = net.mask_region(ds.data[:64,:].to(device))
+
+            net = VQ_Classifier(
+                num_classes = class_args.num_classes,
+                vqvae_model = class_args.vqvae_model,
+                positions = new_list[i],
+                mask = masked_regions,
+                auc_classification = args.auc_classification,
+                auc_classification_eval = args.auc_classification_eval,
+                model_type = class_args.model_type,
+                len_position = args.len_position
+            ).to(device)        
 
         #load classification model
         net.load_state_dict(classification_model['model_state_dict'])
@@ -106,12 +140,11 @@ for method, position_ranking in zip(args.method, args.position_ranking):
             for _, (data, labels) in enumerate(test_loader):
                 data = data.unsqueeze(1).float()
                 labels = labels.type(torch.LongTensor)
-                labels = torch.argmax(labels, dim=1)
                 data, labels = data.to(device), labels.to(device)
                 output, codebook_tokens, recon, input= net(data)
                 
-                score = metrics.roc_auc_score(labels.cpu(), output[:,1].cpu())
-                score2 = metrics.average_precision_score(labels.cpu(), output[:,1].cpu())
+                score = metrics.roc_auc_score(labels.cpu(), output.cpu())
+                score2 = metrics.average_precision_score(labels.cpu(), output.cpu())
                 print(score)
                 print(score2)
                 roc_auc_scores.append(score)
