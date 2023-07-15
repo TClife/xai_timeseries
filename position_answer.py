@@ -34,10 +34,10 @@ if __name__ =='__main__':
     parser =argparse.ArgumentParser()
     parser.add_argument('--labels', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=80)
-    parser.add_argument('--dataset', type =str,default='mitbih')
+    parser.add_argument('--dataset', type =str,default='ptb')
     parser.add_argument('--num_classes', type=int, default=1)
-    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/mitbih/8/model_200.pt")
-    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/mitbih/8/resnet.pt")
+    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/ptb/8/model_110.pt")
+    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb/8/resnet.pt")
     parser.add_argument('--model_type',type =str,default='resnet', help='cnn_transformer, transformer, cnn, resnet')
     parser.add_argument('--device', type =str,default='3')
     parser.add_argument('--auc_classification', type=bool, default=False)
@@ -45,6 +45,7 @@ if __name__ =='__main__':
     parser.add_argument('--num_quantizers', type=int, default=8)
     parser.add_argument('--positions', type=int, default=0)
     parser.add_argument('--mask', type=int, default=0)
+    parser.add_argument('--num_features', type=int, default=3)
     args = parser.parse_args()
     
     os.environ["CUDA_VISIBLE_DEVICES"] = args.device
@@ -53,6 +54,7 @@ if __name__ =='__main__':
     classifier = args.model_type
     classification_model =  args.classification_model
     vqvae_model = args.vqvae_model
+    num_features = args.num_features
     ds = load_data(args.dataset, task = 'xai')
     
     train_size = int(0.8 * len(ds))
@@ -132,13 +134,13 @@ if __name__ =='__main__':
     net.eval()
     selected_positions = []
     
-    for i in range(len_position):
+    for i in range(len_position // num_features):
         with torch.no_grad():    
             for _, (data, labels) in enumerate(test_loader):
                 data = data.unsqueeze(1).float()
                 labels = labels.type(torch.LongTensor)
                 data, labels = data.to(device), labels.to(device)
-                selected_positions = net.position_answer(data, i, labels, selected_positions)
+                selected_positions = net.position_answer(data, i, labels, selected_positions, num_features)
     
     print(selected_positions)
                 

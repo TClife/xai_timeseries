@@ -5,9 +5,10 @@ from torch.utils.data import DataLoader, Dataset, random_split
 import pandas as pd 
 from argparse import ArgumentParser
 from captum.attr import LayerIntegratedGradients
+from models import resnet34
 
 torch.set_num_threads(32) 
-torch.manual_seed(112) 
+torch.manual_seed(911) 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #Create args parser for labels and batch size 
@@ -15,12 +16,12 @@ parser = ArgumentParser()
 parser.add_argument('--labels', type=int, default=0)
 parser.add_argument('--num_features', type=int, default=2)
 parser.add_argument('--batch_size', type=int, default=256)
-parser.add_argument('--vqvae_model', default = "/home/smjo/xai_timeseries/vqvae/saved_models/hard_mitbih/8/model_290.pt")
-parser.add_argument('--classification_model', type=str, default="/home/smjo/xai_timeseries/vqvae/saved_models/classification/mitbih/8/cnn.pt")
+parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/ptb/8/model_110.pt")
+parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb/8/resnet.pt")
 parser.add_argument('--task', type=str, default='xai', help="Task being done")
-parser.add_argument('--dataset', type=str, default="mitbih")
+parser.add_argument('--dataset', type=str, default="ptb")
 parser.add_argument('--plot_dataset', type=bool, default=True)
-parser.add_argument('--model_type', type=str, default="cnn")
+parser.add_argument('--model_type', type=str, default="resnet")
 parser.add_argument('--auc_classification', type=bool, default=False)
 parser.add_argument('--len_position', type=int, default=12)
 
@@ -40,16 +41,29 @@ test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False
 #load classification args 
 classification_model = torch.load(args.classification_model)
 class_args = classification_model['args']
+
 #ECG Dataset
-net = VQ_Classifier(
-    num_classes = class_args.num_classes,
-    vqvae_model = class_args.vqvae_model,
-    positions = class_args.positions,
-    mask = class_args.mask,
-    auc_classification = args.auc_classification,
-    model_type = class_args.model_type,
-    len_position = args.len_position
-).to(device)
+if args.model_type == "resnet":
+    net = resnet34(
+        num_classes = class_args.num_classes,
+        vqvae_model = class_args.vqvae_model,
+        positions = class_args.positions,
+        mask = class_args.mask,
+        auc_classification = args.auc_classification,
+        model_type = class_args.model_type,
+        len_position = args.len_position
+    ).to(device)
+
+else:
+    net = VQ_Classifier(
+        num_classes = class_args.num_classes,
+        vqvae_model = class_args.vqvae_model,
+        positions = class_args.positions,
+        mask = class_args.mask,
+        auc_classification = args.auc_classification,
+        model_type = class_args.model_type,
+        len_position = args.len_position
+    ).to(device)
 
 #load classification model
 net.load_state_dict(classification_model['model_state_dict'])

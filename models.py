@@ -18,6 +18,7 @@ import os
 from tqdm import tqdm
 import sklearn
 from x_transformers import TransformerWrapper, Encoder
+import itertools
 
 torch.set_num_threads(32)
 torch.manual_seed(112)
@@ -51,6 +52,18 @@ class BasicBlock1d(nn.Module):
         out = self.relu(out)
         return out
 
+#Make combinations 
+class Combination:
+    def __init__(self, position_consider, num_features):
+        self.sequence = position_consider  # [0, 1, 2, ..., 11]
+        self.num_features = num_features
+        self.combined_list = []
+
+    def process_permutations(self):
+        for pairs in itertools.combinations(self.sequence, self.num_features):
+            # process permutation here
+            self.combined_list.append(pairs)
+        return self.combined_list
 
 class ResNet1d(nn.Module):
     def __init__(self, block, layers, vqvae_model, positions, mask, model_type, len_position, num_classes=1, auc_classification=False, auc_classification_eval=False, input_channels=64, inplanes=64):
@@ -139,7 +152,30 @@ class ResNet1d(nn.Module):
 
         return masked_regions
 
-    def position_answer(self, img, unmasked_positions, labels, selected_positions):
+    def ig(self, encoding_indices):
+        quantized = self.embedding(encoding_indices.long())
+        quantized = quantized.view(quantized.shape[0], -1, quantized.shape[-1])
+            
+        quantized_t = quantized.transpose(2,1)
+        x = quantized_t
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x1 = self.adaptiveavgpool(x)
+        x2 = self.adaptivemaxpool(x)
+        x = torch.cat((x1, x2), dim=1)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+    
+        
+        return x, encoding_indices, quantized
+
+    def position_answer(self, img, unmasked_positions, labels, selected_positions, num_features):
         encoded = self.vae.encoder(img.float()) 
         
         t = encoded.shape[-1]
@@ -152,9 +188,14 @@ class ResNet1d(nn.Module):
             masked_tensor[:,:,i] = self.mask[i]
         
         if not selected_positions:
-            
+            #positon consider
+            positions_consider = list(range(self.len_position)) 
+            # Usage:
+            my_instance = Combination(positions_consider, num_features)
+            combinations = my_instance.process_permutations()
+           
             position_scores = []
-            for i in range(self.len_position):
+            for i in combinations:
                 new_tensor = masked_tensor.clone()
                 new_tensor[:,i,:] = encoding_indices[:,i,:]
                 result = None
@@ -181,6 +222,7 @@ class ResNet1d(nn.Module):
                     score = sklearn.metrics.roc_auc_score(labels.cpu().detach().numpy(), x.squeeze(1).cpu().detach().numpy())
                     position_scores.append(score)
             max_position = torch.argmax(torch.tensor(position_scores))
+            max_position = combinations[max_position]
 
         else:
             
@@ -196,9 +238,12 @@ class ResNet1d(nn.Module):
             created_mask = ~created_mask
             positions_consider = position_list[created_mask]
             
+            my_instance = Combination(positions_consider, num_features)
+            combinations = my_instance.process_permutations()
+
             position_scores = []
             altered_recon = []
-            for i in positions_consider:
+            for i in combinations:
                 altered_tensor = new_tensor.clone()
                 altered_tensor[:,i,:] = encoding_indices[:,i,:]
                 result = None
@@ -225,7 +270,8 @@ class ResNet1d(nn.Module):
                     score = sklearn.metrics.roc_auc_score(labels.cpu().detach().numpy(), x.squeeze(1).cpu().detach().numpy())
                     position_scores.append(score)
             max_position = torch.argmax(torch.tensor(position_scores))
-            max_position = positions_consider[max_position]
+            max_position = combinations[max_position]
+            max_position = tuple(tensor.item() for tensor in max_position)
             
         #plot x_recon 
         x_recon = self.vae.indices_to_recon(new_tensor)
@@ -234,7 +280,7 @@ class ResNet1d(nn.Module):
         plt.savefig("/home/hschung/xai/xai_timeseries/xai/altered_recon/{}_{}.png".format(self.model_type, len(selected_positions)))
         plt.clf()
         
-        selected_positions.append(max_position)
+        selected_positions.extend(max_position)
         return selected_positions
 
     def predict(self, X):
@@ -255,23 +301,21 @@ class ResNet1d(nn.Module):
                 x = self.embedding(original)
                 quantized = x.view(x.shape[0], -1, x.shape[-1])
                 
-                if self.model_type == "cnn":
-                    quantized_t = quantized.transpose(2,1)
-                    x = self.to_hidden(quantized_t)
-                    x = x.transpose(2,1) 
-                    x = x.mean(dim = 1)
-                    x = self.mlp_head(x)
-                elif self.model_type =="transformer":
-                    x = self.transformer(quantized)
-                    x = x.mean(dim = 1)
-                    x = self.mlp_head2(x)
-                elif self.model_type =="cnn_transformer":
-                    quantized_t = quantized.transpose(2,1)
-                    x = self.to_hidden(quantized_t)
-                    x = x.transpose(2,1)      
-                    x = self.cnn_transformer(x)
-                    x = x.mean(dim = 1)
-                    x = self.mlp_head(x)
+                quantized_t = quantized.transpose(2,1)
+                x = quantized_t
+                x = self.conv1(x)
+                x = self.bn1(x)
+                x = self.relu(x)
+                x = self.maxpool(x)
+                x = self.layer1(x)
+                x = self.layer2(x)
+                x = self.layer3(x)
+                x = self.layer4(x)
+                x1 = self.adaptiveavgpool(x)
+                x2 = self.adaptivemaxpool(x)
+                x = torch.cat((x1, x2), dim=1)
+                x = x.view(x.size(0), -1)
+                x = self.fc(x)
                 
                 x = x.cpu().detach().numpy()
                 #decode indices
