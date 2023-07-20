@@ -33,6 +33,7 @@ torch.manual_seed(112)
 if __name__ =='__main__':
     parser =argparse.ArgumentParser()
     parser.add_argument('--labels', type=int, default=1)
+
     parser.add_argument('--batch_size', type=int, default=80)
     parser.add_argument('--dataset', type=str, default="ptb")
     parser.add_argument('--num_classes', type=int, default=1)
@@ -48,11 +49,13 @@ if __name__ =='__main__':
     parser.add_argument('--num_features', type=int, default=1)
     args = parser.parse_args()
     
+    
+
     os.environ["CUDA_VISIBLE_DEVICES"] = args.device
     len_position=args.len_position
     dataset =args.dataset
     classifier = args.model_type
-    classification_model =  args.classification_model
+    classification_model = args.classification_model
     vqvae_model = args.vqvae_model
     num_features = args.num_features
     ds = load_data(args.dataset, task = 'xai')
@@ -128,6 +131,7 @@ if __name__ =='__main__':
     a = torch.load(classification_model)
     net.load_state_dict(a['model_state_dict'])
 
+
     for param in net.parameters():
         param.requires_grad = False
     
@@ -156,9 +160,3 @@ if __name__ =='__main__':
                 
     
     print(combined_selected_positions)
-                
-    
-
-
-
-    

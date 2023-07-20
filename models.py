@@ -765,6 +765,8 @@ class VQ_Classifier(nn.Module):
         for i in range(len(self.mask)):
             masked_tensor[:,:,i] = self.mask[i]
         
+        print(f"masked_tensor:{masked_tensor}")
+        
         if not selected_positions:
             #positon consider
             positions_consider = list(range(self.len_position)) 
@@ -810,6 +812,7 @@ class VQ_Classifier(nn.Module):
             new_tensor = masked_tensor.clone()
             for position in selected_positions:
                 new_tensor[:,position,:] = encoding_indices[:,position,:]
+            print(f"else case new_tensor:{new_tensor.shape}")
             
             position_list = torch.arange(self.len_position)
             designated_positions = torch.tensor(selected_positions)
