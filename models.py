@@ -66,7 +66,7 @@ class Combination:
         return self.combined_list
 
 class ResNet1d(nn.Module):
-    def __init__(self, block, layers, vqvae_model, positions, mask, model_type, len_position, num_classes=1, auc_classification=False, auc_classification_eval=False, input_channels=64, inplanes=64):
+    def __init__(self, block, layers, vqvae_model, positions, mask, model_type, len_position, num_classes=1, auc_classification=False, auc_classification_eval=False, auc_classification_eval2=False, input_channels=64, inplanes=64):
         super(ResNet1d, self).__init__()
 
         self.model_type = model_type
@@ -75,6 +75,7 @@ class ResNet1d(nn.Module):
         self.mask = mask
         self.auc_classification = auc_classification
         self.auc_classification_eval = auc_classification_eval
+        self.auc_classification_eval2 = auc_classification_eval2
         #load vqvae model 
         vae_path = vqvae_model
         load_dict = torch.load(vae_path)["model_state_dict"]
@@ -223,6 +224,7 @@ class ResNet1d(nn.Module):
                     position_scores.append(score)
             max_position = torch.argmax(torch.tensor(position_scores))
             max_position = combinations[max_position]
+            combined_scores = torch.tensor(position_scores)
 
         else:
             
@@ -272,16 +274,127 @@ class ResNet1d(nn.Module):
             max_position = torch.argmax(torch.tensor(position_scores))
             max_position = combinations[max_position]
             max_position = tuple(tensor.item() for tensor in max_position)
+            combined_scores = torch.tensor(position_scores)
             
         #plot x_recon 
         x_recon = self.vae.indices_to_recon(new_tensor)
-        plt.plot(img[10][0].cpu().detach().numpy())
-        plt.plot(x_recon[10][0].cpu().detach().numpy())
+        plt.plot(img[0][0].cpu().detach().numpy())
+        plt.plot(x_recon[0][0].cpu().detach().numpy())
         plt.savefig("/home/hschung/xai/xai_timeseries/xai/altered_recon/{}_{}.png".format(self.model_type, len(selected_positions)))
         plt.clf()
         
         selected_positions.extend(max_position)
-        return selected_positions
+        return selected_positions, combined_scores, combinations
+
+    def position_answer_deletion(self, img, unmasked_positions, labels, selected_positions, num_features):
+        encoded = self.vae.encoder(img.float()) 
+        
+        t = encoded.shape[-1]
+         
+        encoded = rearrange(encoded, 'b c t -> b t c') 
+        quantized, encoding_indices, commit_loss = self.vae.vq(encoded)    
+        
+        masked_tensor = torch.zeros(encoding_indices.shape, dtype=int, device=device)
+        for i in range(len(self.mask)):
+            masked_tensor[:,:,i] = self.mask[i]
+        
+        if not selected_positions:
+            #positon consider
+            positions_consider = list(range(self.len_position)) 
+            # Usage:
+            my_instance = Combination(positions_consider, num_features)
+            combinations = my_instance.process_permutations()
+           
+            position_scores = []
+            for i in combinations:
+                new_tensor = encoding_indices.clone()
+                new_tensor[:,i,:] = masked_tensor[:,i,:]
+                result = None
+                x = self.embedding(new_tensor)
+                quantized = x.view(x.shape[0], -1, x.shape[-1])
+                with torch.no_grad():
+                    quantized_t = quantized.transpose(2,1)
+                    x = quantized_t
+                    x = self.conv1(x)
+                    x = self.bn1(x)
+                    x = self.relu(x)
+                    x = self.maxpool(x)
+                    x = self.layer1(x)
+                    x = self.layer2(x)
+                    x = self.layer3(x)
+                    x = self.layer4(x)
+                    x1 = self.adaptiveavgpool(x)
+                    x2 = self.adaptivemaxpool(x)
+                    x = torch.cat((x1, x2), dim=1)
+                    x = x.view(x.size(0), -1)
+                    x = self.fc(x)
+                    x = torch.sigmoid(x)
+                    
+                    score = sklearn.metrics.roc_auc_score(labels.cpu().detach().numpy(), x.squeeze(1).cpu().detach().numpy())
+                    position_scores.append(score)
+            max_position = torch.argmin(torch.tensor(position_scores))
+            max_position = combinations[max_position]
+            combined_scores = torch.tensor(position_scores)
+
+        else:
+            
+            #fix selected positions 
+            new_tensor = encoding_indices.clone()
+            for position in selected_positions:
+                new_tensor[:,position,:] = masked_tensor[:,position,:]
+            
+            position_list = torch.arange(self.len_position)
+            designated_positions = torch.tensor(selected_positions)
+            
+            created_mask = torch.isin(position_list, designated_positions)
+            created_mask = ~created_mask
+            positions_consider = position_list[created_mask]
+            
+            my_instance = Combination(positions_consider, num_features)
+            combinations = my_instance.process_permutations()
+
+            position_scores = []
+            altered_recon = []
+            for i in combinations:
+                altered_tensor = new_tensor.clone()
+                altered_tensor[:,i,:] = masked_tensor[:,i,:]
+                result = None
+                x = self.embedding(altered_tensor)
+                quantized = x.view(x.shape[0], -1, x.shape[-1])
+                with torch.no_grad():
+                    quantized_t = quantized.transpose(2,1)
+                    x = quantized_t
+                    x = self.conv1(x)
+                    x = self.bn1(x)
+                    x = self.relu(x)
+                    x = self.maxpool(x)
+                    x = self.layer1(x)
+                    x = self.layer2(x)
+                    x = self.layer3(x)
+                    x = self.layer4(x)
+                    x1 = self.adaptiveavgpool(x)
+                    x2 = self.adaptivemaxpool(x)
+                    x = torch.cat((x1, x2), dim=1)
+                    x = x.view(x.size(0), -1)
+                    x = self.fc(x)
+                    x = torch.sigmoid(x)
+        
+                    score = sklearn.metrics.roc_auc_score(labels.cpu().detach().numpy(), x.squeeze(1).cpu().detach().numpy())
+                    position_scores.append(score)
+            max_position = torch.argmin(torch.tensor(position_scores))
+            max_position = combinations[max_position]
+            max_position = tuple(tensor.item() for tensor in max_position)
+            combined_scores = torch.tensor(position_scores)
+            
+        #plot x_recon 
+        x_recon = self.vae.indices_to_recon(new_tensor)
+        plt.plot(img[0][0].cpu().detach().numpy())
+        plt.plot(x_recon[0][0].cpu().detach().numpy())
+        plt.savefig("/home/hschung/xai/xai_timeseries/xai/altered_recon/{}_{}.png".format(self.model_type, len(selected_positions)))
+        plt.clf()
+        
+        selected_positions.extend(max_position)
+        return selected_positions, combined_scores, combinations
 
     def predict(self, X):
         if isinstance(X, np.ndarray):
@@ -335,7 +448,7 @@ class ResNet1d(nn.Module):
         encoded = rearrange(encoded, 'b c t -> b t c') 
         quantized, encoding_indices, commit_loss = self.vae.vq(encoded) 
 
-        if self.auc_classification_eval:
+        if self.auc_classification_eval or self.auc_classification_eval2:
             #create a mask tensor
             tmp = torch.zeros(encoding_indices.shape, dtype=int, device=device)
             for i in range(len(self.mask)):
@@ -348,6 +461,7 @@ class ResNet1d(nn.Module):
             
             quantized = self.embedding(new_tensor)
             quantized = quantized.reshape(len(img),-1,64)
+        
             
         else:
             #embed codebooks
@@ -405,7 +519,7 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 class VQ_Classifier(nn.Module):
-    def __init__(self, *, num_classes, vqvae_model, positions, mask, auc_classification=False, auc_classification_eval=False, model_type, len_position):
+    def __init__(self, *, num_classes, vqvae_model, positions, mask, auc_classification=False, auc_classification_eval=False, auc_classification_eval2=False, model_type, len_position):
         super().__init__()
         self.model_type = model_type
         self.positions = positions
@@ -413,6 +527,7 @@ class VQ_Classifier(nn.Module):
         self.mask = mask
         self.auc_classification = auc_classification
         self.auc_classification_eval = auc_classification_eval
+        self.auc_classification_eval2 = auc_classification_eval2
         
         #load vqvae model 
         vae_path = vqvae_model
@@ -638,7 +753,7 @@ class VQ_Classifier(nn.Module):
                 np.savetxt(f, original_recon[0][0].cpu().detach().numpy().reshape(1, 192), delimiter=',')
                
     
-    def position_answer(self, img, unmasked_positions, labels, selected_positions):
+    def position_answer(self, img, unmasked_positions, labels, selected_positions, num_features):
         encoded = self.vae.encoder(img.float()) 
         
         t = encoded.shape[-1]
@@ -651,7 +766,11 @@ class VQ_Classifier(nn.Module):
             masked_tensor[:,:,i] = self.mask[i]
         
         if not selected_positions:
-            
+            #positon consider
+            positions_consider = list(range(self.len_position)) 
+            # Usage:
+            my_instance = Combination(positions_consider, num_features)
+            combinations = my_instance.process_permutations()
             position_scores = []
             for i in range(self.len_position):
                 new_tensor = masked_tensor.clone()
@@ -680,8 +799,10 @@ class VQ_Classifier(nn.Module):
                     
                     x = torch.sigmoid(x)
                     
-                    position_scores.append(torch.mean(x[torch.arange(labels.shape[0]), labels]))
+                    score = sklearn.metrics.roc_auc_score(labels.cpu().detach().numpy(), x.squeeze(1).cpu().detach().numpy())
+                    position_scores.append(score)
             max_position = torch.argmax(torch.tensor(position_scores))
+            max_position = combinations[max_position]
 
         else:
             
@@ -696,6 +817,8 @@ class VQ_Classifier(nn.Module):
             created_mask = torch.isin(position_list, designated_positions)
             created_mask = ~created_mask
             positions_consider = position_list[created_mask]
+            my_instance = Combination(positions_consider, num_features)
+            combinations = my_instance.process_permutations()
             
             position_scores = []
             altered_recon = []
@@ -726,9 +849,10 @@ class VQ_Classifier(nn.Module):
                     
                     x = torch.sigmoid(x)
         
-                    position_scores.append(torch.mean(x[torch.arange(labels.shape[0]), labels]))
+                    score = sklearn.metrics.roc_auc_score(labels.cpu().detach().numpy(), x.squeeze(1).cpu().detach().numpy())
+                    position_scores.append(score)
             max_position = torch.argmax(torch.tensor(position_scores))
-            max_position = positions_consider[max_position]
+            max_position = combinations[max_position]
             
         #plot x_recon 
         x_recon = self.vae.indices_to_recon(new_tensor)
@@ -749,7 +873,7 @@ class VQ_Classifier(nn.Module):
         encoded = rearrange(encoded, 'b c t -> b t c') 
         quantized, encoding_indices, commit_loss = self.vae.vq(encoded)            
         
-        if self.auc_classification_eval:
+        if self.auc_classification_eval or self.auc_classification_eval2:
             #create a mask tensor
             tmp = torch.zeros(encoding_indices.shape, dtype=int, device=device)
             for i in range(len(self.mask)):

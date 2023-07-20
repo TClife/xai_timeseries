@@ -18,26 +18,25 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 torch.set_num_threads(32) 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-torch.manual_seed(911)
-
+torch.manual_seed(112)
 
 #Create args parser for labels and batch size 
 parser = ArgumentParser() 
 parser.add_argument('--labels', type=int, default=0)
 parser.add_argument('--num_features', type=int, default=2)
 parser.add_argument('--batch_size', type=int, default=80)
-parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/mitbih/8/model_200.pt")
-parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/mitbih/8/resnet.pt")
+parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb/8/resnet.pt")
+parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/ptb/8/model_110.pt")
 parser.add_argument('--task', type=str, default='xai', help="Task being done")
-parser.add_argument('--dataset', type=str, default="mitbih")
+parser.add_argument('--dataset', type=str, default="ptb")
 parser.add_argument('--plot_dataset', type=bool, default=True)
 parser.add_argument('--model_type', type=str, default="resnet")
 parser.add_argument('--auc_classification', type=bool, default=False)
-parser.add_argument('--auc_classification_eval', type=bool, default=True)
+parser.add_argument('--auc_classification_eval', type=bool, default=False) 
+parser.add_argument('--auc_classification_eval2', type=bool, default=True)
 parser.add_argument('--len_position', type=int, default=12)
-parser.add_argument('--method', default= ["SHAP", "Ours", "IG", "LIME"])
-parser.add_argument('--position_ranking', default = [[3,6,2,7,1,0,5,10,9,4,11,8], [1,9,3,7,5,8,10,11,4,6,2,0], [3,7,6,0,1,5,2,4,8,9,10,11], [6,3,0,1,2,7,4,5,8,9,10,11]])
-
+parser.add_argument('--method', default= ["LIME", "SHAP", "IG", "Ours"])
+parser.add_argument('--position_ranking', default = [[6,3,4,0,9,5,2,7,11,10,8,1], [3,6,4,0,11,2,7,8,10,9,1,5], [3,6,4,0,8,5,2,7,9,10,1,11], [1,2,7,0,5,6,4,8,9,3,11,10]])
 args = parser.parse_args() 
 
 #dataset split 
@@ -61,10 +60,15 @@ for method, position_ranking in zip(args.method, args.position_ranking):
     for i in range(len(position_ranking)):
         new_list.append(position_ranking[:i+1])
 
-    print(new_list)
+    if args.auc_classification_eval:
+        new_list = new_list 
+    elif args.auc_classification_eval2:
+        new_list = [position_ranking[i:] for i in range(len(position_ranking))]
 
+    print(new_list)
     #loop over new_list
     x_axis = range(1, len(new_list)+1)
+    reverse_xaxis = range(1, len(new_list)+1)
     roc_auc_scores = []
     pr_auc_scores = []
     for i in range(len(new_list)):
@@ -82,6 +86,7 @@ for method, position_ranking in zip(args.method, args.position_ranking):
                 mask = class_args.mask,
                 auc_classification = args.auc_classification,
                 auc_classification_eval = args.auc_classification_eval,
+                auc_classification_eval2 = args.auc_classification_eval2,
                 model_type = class_args.model_type,
                 len_position = args.len_position
             ).to(device)
@@ -96,6 +101,7 @@ for method, position_ranking in zip(args.method, args.position_ranking):
                 mask = masked_regions,
                 auc_classification = args.auc_classification,
                 auc_classification_eval = args.auc_classification_eval,
+                auc_classification_eval2 = args.auc_classification_eval2,
                 model_type = class_args.model_type,
                 len_position = args.len_position
             ).to(device)
@@ -109,6 +115,7 @@ for method, position_ranking in zip(args.method, args.position_ranking):
                 mask = class_args.mask,
                 auc_classification = args.auc_classification,
                 auc_classification_eval = args.auc_classification_eval,
+                auc_classification_eval2 = args.auc_classification_eval2,
                 model_type = class_args.model_type,
                 len_position = args.len_position
             ).to(device)
@@ -123,6 +130,7 @@ for method, position_ranking in zip(args.method, args.position_ranking):
                 mask = masked_regions,
                 auc_classification = args.auc_classification,
                 auc_classification_eval = args.auc_classification_eval,
+                auc_classification_eval2 = args.auc_classification_eval2,
                 model_type = class_args.model_type,
                 len_position = args.len_position
             ).to(device)        
@@ -136,7 +144,7 @@ for method, position_ranking in zip(args.method, args.position_ranking):
         net.eval()   
 
 
-        with torch.no_grad():    
+        with torch.no_grad():
             for _, (data, labels) in enumerate(test_loader):
                 data = data.unsqueeze(1).float()
                 labels = labels.type(torch.LongTensor)
@@ -153,6 +161,10 @@ for method, position_ranking in zip(args.method, args.position_ranking):
     area = np.trapz(roc_auc_scores, list(x_axis)) / 11
     print(f"{method} Area under the curve:", area)                
     plt.plot(list(x_axis), roc_auc_scores, label=method)
+    if args.auc_classification_eval:
+        plt.xticks(list(x_axis))
+    elif args.auc_classification_eval2:
+            plt.xticks(list(reverse_xaxis), list(x_axis)[::-1])
     plt.title(f"{args.dataset} dataset {args.model_type} model")
     plt.ylabel('AUROC')
     plt.xlabel('Number of Features')

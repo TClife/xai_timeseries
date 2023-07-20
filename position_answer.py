@@ -28,16 +28,16 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 torch.set_num_threads(32) 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-torch.manual_seed(911)
+torch.manual_seed(112)
 
 if __name__ =='__main__':
     parser =argparse.ArgumentParser()
     parser.add_argument('--labels', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=80)
-    parser.add_argument('--dataset', type =str,default='ptb')
+    parser.add_argument('--dataset', type=str, default="ptb")
     parser.add_argument('--num_classes', type=int, default=1)
-    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/ptb/8/model_110.pt")
     parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb/8/resnet.pt")
+    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/ptb/8/model_110.pt")
     parser.add_argument('--model_type',type =str,default='resnet', help='cnn_transformer, transformer, cnn, resnet')
     parser.add_argument('--device', type =str,default='3')
     parser.add_argument('--auc_classification', type=bool, default=False)
@@ -45,7 +45,7 @@ if __name__ =='__main__':
     parser.add_argument('--num_quantizers', type=int, default=8)
     parser.add_argument('--positions', type=int, default=0)
     parser.add_argument('--mask', type=int, default=0)
-    parser.add_argument('--num_features', type=int, default=3)
+    parser.add_argument('--num_features', type=int, default=1)
     args = parser.parse_args()
     
     os.environ["CUDA_VISIBLE_DEVICES"] = args.device
@@ -132,7 +132,9 @@ if __name__ =='__main__':
         param.requires_grad = False
     
     net.eval()
-    selected_positions = []
+    insertion_selected_positions = []
+    deletion_selected_positions = []
+    combined_selected_positions = []
     
     for i in range(len_position // num_features):
         with torch.no_grad():    
@@ -140,9 +142,20 @@ if __name__ =='__main__':
                 data = data.unsqueeze(1).float()
                 labels = labels.type(torch.LongTensor)
                 data, labels = data.to(device), labels.to(device)
-                selected_positions = net.position_answer(data, i, labels, selected_positions, num_features)
+                insertion_selected_positions, insertion_combined_scores, insertion_combinations = net.position_answer(data, i, labels, insertion_selected_positions, num_features)
+                deletion_selected_positions, deletion_combined_scores, deletion_combinations = net.position_answer_deletion(data, i, labels, deletion_selected_positions, num_features)
+                
+                #combined metric 
+                combined_selected_position = int(torch.argmax(insertion_combined_scores - deletion_combined_scores))
+                assert insertion_combinations == deletion_combinations
+                combined_selected_positions.append(insertion_combinations[combined_selected_position])
+                
+                #change both insertion and deletion selected positions to combined 
+                insertion_selected_positions = list(combined_selected_positions)
+                deletion_selected_positions = list(combined_selected_positions)
+                
     
-    print(selected_positions)
+    print(combined_selected_positions)
                 
     
 
