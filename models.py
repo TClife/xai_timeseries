@@ -185,6 +185,7 @@ class ResNet1d(nn.Module):
         quantized, encoding_indices, commit_loss = self.vae.vq(encoded)    
         
         masked_tensor = torch.zeros(encoding_indices.shape, dtype=int, device=device)
+        
         for i in range(len(self.mask)):
             masked_tensor[:,:,i] = self.mask[i]
         
@@ -490,6 +491,376 @@ class ResNet1d(nn.Module):
 
         return x, encoding_indices, x_recon, quantized
 
+class ResNet1d_raw(nn.Module):
+    def __init__(self, block, layers, vqvae_model, positions, mask, model_type, len_position, num_classes=1, auc_classification=False, auc_classification_eval=False, auc_classification_eval2=False, input_channels=1, inplanes=64):
+        super(ResNet1d_raw, self).__init__()
+
+        self.model_type = model_type
+        self.positions = positions
+        self.len_position = len_position
+        self.mask = mask
+        self.auc_classification = auc_classification
+        self.auc_classification_eval = auc_classification_eval
+        self.auc_classification_eval2 = auc_classification_eval2
+        #load vqvae model 
+        vae_path = vqvae_model
+        load_dict = torch.load(vae_path)["model_state_dict"]
+        self.args= torch.load(vae_path)["args"]
+
+        #vqvae model
+        self.vae = Residual_VQVAE(image_size=self.args.ecg_size-16, num_layers=self.args.num_layers, num_tokens=self.args.num_tokens, 
+                                  codebook_dim=self.args.codebook_dim, hidden_dim=self.args.hidden_dim, num_resnet_blocks=self.args.num_resnet_blocks, 
+                                  temperature=self.args.temperature, straight_through=self.args.straight_through, num_quantizers=self.args.num_quantizers).to(device)
+        self.vae.load_state_dict(load_dict)
+
+        for param in self.vae.parameters():
+            param.requires_grad = False    
+
+        self.embedding = nn.Embedding(self.args.num_tokens, self.args.codebook_dim)
+        self.inplanes = inplanes
+        self.conv1 = nn.Conv1d(input_channels, self.inplanes, kernel_size=15, stride=2, padding=7, bias=False)
+        self.bn1 = nn.BatchNorm1d(inplanes)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(BasicBlock1d, 64, layers[0])
+        self.layer2 = self._make_layer(BasicBlock1d, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(BasicBlock1d, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(BasicBlock1d, 512, layers[3], stride=2)
+        self.adaptiveavgpool = nn.AdaptiveAvgPool1d(1)
+        self.adaptivemaxpool = nn.AdaptiveMaxPool1d(1)
+        self.fc = nn.Linear(512 * block.expansion * 2, num_classes)
+        self.dropout = nn.Dropout(0.2)
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv1d(self.inplanes, planes * block.expansion,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm1d(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+        return nn.Sequential(*layers)
+
+    def mask_region(self, img):
+     
+        #Zero Padding        
+        padding = (0, 16)
+        img = F.pad(img, padding, "constant", 0)
+        
+        img = img.unsqueeze(1)
+         #convert numpy to tensor
+        if isinstance(img, np.ndarray):
+            img = torch.from_numpy(img).to(device)
+            quantized = self.embedding(img)
+            quantized = quantized.transpose(2,1)
+            x = self.to_hidden(quantized)
+            x = x.transpose(2,1) 
+            x = x.mean(dim = 1)
+            
+            return self.mlp_head(x)
+
+        encoded = self.vae.encoder(img.float()) 
+
+        t = encoded.shape[-1] 
+
+        encoded = rearrange(encoded, 'b c t -> b t c') 
+        quantized, encoding_indices, commit_loss = self.vae.vq(encoded)
+        masked_regions = []
+        
+        for i in range(encoding_indices.shape[2]):
+            mask_indices,_ = torch.mode(encoding_indices[:,-1,i])
+            masked_regions.append(mask_indices)
+
+        return masked_regions
+
+    def ig(self, encoding_indices):
+        quantized = self.embedding(encoding_indices.long())
+        quantized = quantized.view(quantized.shape[0], -1, quantized.shape[-1])
+            
+        quantized_t = quantized.transpose(2,1)
+        x = quantized_t
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x1 = self.adaptiveavgpool(x)
+        x2 = self.adaptivemaxpool(x)
+        x = torch.cat((x1, x2), dim=1)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+    
+        
+        return x, encoding_indices, quantized
+
+    def position_answer(self, img, unmasked_positions, labels, selected_positions, num_features):
+      
+        masked_tensor = torch.zeros(img.shape, dtype=float, device=device)
+
+        if not selected_positions:
+            #positon consider
+            positions_consider = list(range(self.len_position)) 
+            # Usage:
+            my_instance = Combination(positions_consider, num_features)
+            combinations = my_instance.process_permutations()
+           
+            position_scores = []
+            for i in combinations:
+                new_tensor = masked_tensor.clone().float()
+                new_tensor[:,:,i] = img[:,:,i]
+                result = None
+                x = new_tensor
+                quantized = x
+                with torch.no_grad():
+                    x = quantized
+                    x = self.conv1(x)
+                    x = self.bn1(x)
+                    x = self.relu(x)
+                    x = self.maxpool(x)
+                    x = self.layer1(x)
+                    x = self.layer2(x)
+                    x = self.layer3(x)
+                    x = self.layer4(x)
+                    x1 = self.adaptiveavgpool(x)
+                    x2 = self.adaptivemaxpool(x)
+                    x = torch.cat((x1, x2), dim=1)
+                    x = x.view(x.size(0), -1)
+                    x = self.fc(x)
+                    x = torch.sigmoid(x)
+                    
+                    score = sklearn.metrics.roc_auc_score(labels.cpu().detach().numpy(), x.squeeze(1).cpu().detach().numpy())
+                    position_scores.append(score)
+            max_position = torch.argmax(torch.tensor(position_scores))
+            max_position = combinations[max_position]
+            combined_scores = torch.tensor(position_scores)
+
+        else:
+            
+            #fix selected positions 
+            new_tensor = masked_tensor.clone()
+            for position in selected_positions:
+                new_tensor[:,:,position] = img[:,:,position].double()
+            
+            position_list = torch.arange(self.len_position)
+            designated_positions = torch.tensor(selected_positions)
+            
+            created_mask = torch.isin(position_list, designated_positions)
+            created_mask = ~created_mask
+            positions_consider = position_list[created_mask]
+            
+            my_instance = Combination(positions_consider, num_features)
+            combinations = my_instance.process_permutations()
+
+            position_scores = []
+            altered_recon = []
+            for i in combinations:
+                altered_tensor = new_tensor.clone()
+                altered_tensor[:,:,i] = img[:,:,i].double()
+                result = None
+                x = altered_tensor
+                with torch.no_grad():
+                    x = self.conv1(x.float())
+                    x = self.bn1(x)
+                    x = self.relu(x)
+                    x = self.maxpool(x)
+                    x = self.layer1(x)
+                    x = self.layer2(x)
+                    x = self.layer3(x)
+                    x = self.layer4(x)
+                    x1 = self.adaptiveavgpool(x)
+                    x2 = self.adaptivemaxpool(x)
+                    x = torch.cat((x1, x2), dim=1)
+                    x = x.view(x.size(0), -1)
+                    x = self.fc(x)
+                    x = torch.sigmoid(x)
+        
+                    score = sklearn.metrics.roc_auc_score(labels.cpu().detach().numpy(), x.squeeze(1).cpu().detach().numpy())
+                    position_scores.append(score)
+            max_position = torch.argmax(torch.tensor(position_scores))
+            max_position = combinations[max_position]
+            max_position = tuple(tensor.item() for tensor in max_position)
+            combined_scores = torch.tensor(position_scores)
+        
+        selected_positions.extend(max_position)
+        return selected_positions, combined_scores, combinations
+
+    def position_answer_deletion(self, img, unmasked_positions, labels, selected_positions, num_features):  
+        
+        masked_tensor = torch.zeros(img.shape, dtype=float, device=device)
+        
+        if not selected_positions:
+            #positon consider
+            positions_consider = list(range(self.len_position)) 
+            # Usage:
+            my_instance = Combination(positions_consider, num_features)
+            combinations = my_instance.process_permutations()
+           
+            position_scores = []
+            for i in combinations:
+                new_tensor = img.clone()
+                new_tensor[:,:,i] = masked_tensor[:,:,i].float()
+                result = None
+                x = new_tensor
+                with torch.no_grad():
+                    x = self.conv1(x)
+                    x = self.bn1(x)
+                    x = self.relu(x)
+                    x = self.maxpool(x)
+                    x = self.layer1(x)
+                    x = self.layer2(x)
+                    x = self.layer3(x)
+                    x = self.layer4(x)
+                    x1 = self.adaptiveavgpool(x)
+                    x2 = self.adaptivemaxpool(x)
+                    x = torch.cat((x1, x2), dim=1)
+                    x = x.view(x.size(0), -1)
+                    x = self.fc(x)
+                    x = torch.sigmoid(x)
+                    
+                    score = sklearn.metrics.roc_auc_score(labels.cpu().detach().numpy(), x.squeeze(1).cpu().detach().numpy())
+                    position_scores.append(score)
+            max_position = torch.argmin(torch.tensor(position_scores))
+            max_position = combinations[max_position]
+            combined_scores = torch.tensor(position_scores)
+
+        else:
+            
+            #fix selected positions 
+            new_tensor = img.clone()
+            for position in selected_positions:
+                new_tensor[:,:,position] = masked_tensor[:,:,position].float()
+            
+            position_list = torch.arange(self.len_position)
+            designated_positions = torch.tensor(selected_positions)
+            
+            created_mask = torch.isin(position_list, designated_positions)
+            created_mask = ~created_mask
+            positions_consider = position_list[created_mask]
+            
+            my_instance = Combination(positions_consider, num_features)
+            combinations = my_instance.process_permutations()
+
+            position_scores = []
+            altered_recon = []
+            for i in combinations:
+                altered_tensor = new_tensor.clone()
+                altered_tensor[:,:,i] = masked_tensor[:,:,i].float()
+                result = None
+                x = altered_tensor
+                with torch.no_grad():
+                    x = self.conv1(x)
+                    x = self.bn1(x)
+                    x = self.relu(x)
+                    x = self.maxpool(x)
+                    x = self.layer1(x)
+                    x = self.layer2(x)
+                    x = self.layer3(x)
+                    x = self.layer4(x)
+                    x1 = self.adaptiveavgpool(x)
+                    x2 = self.adaptivemaxpool(x)
+                    x = torch.cat((x1, x2), dim=1)
+                    x = x.view(x.size(0), -1)
+                    x = self.fc(x)
+                    x = torch.sigmoid(x)
+        
+                    score = sklearn.metrics.roc_auc_score(labels.cpu().detach().numpy(), x.squeeze(1).cpu().detach().numpy())
+                    position_scores.append(score)
+            max_position = torch.argmin(torch.tensor(position_scores))
+            max_position = combinations[max_position]
+            max_position = tuple(tensor.item() for tensor in max_position)
+            combined_scores = torch.tensor(position_scores)
+        
+        selected_positions.extend(max_position)
+        return selected_positions, combined_scores, combinations
+
+    def predict(self, X):
+        if isinstance(X, np.ndarray):
+            X = torch.from_numpy(X).to(device)
+            X = X.unsqueeze(1)
+        X = tensor(X, dtype=torch.float32)
+        X = X.cuda()
+        ds = TensorDataset(X)
+        dl = DataLoader(ds, batch_size=256, shuffle=False, drop_last=False)
+
+        """Evaluate the given data loader on the model and return predictions"""
+        result = None
+        recon = None
+        with torch.no_grad():
+            for x in dl:
+                original = x[0].squeeze(1).long()
+                x = self.embedding(original)
+                quantized = x.view(x.shape[0], -1, x.shape[-1])
+                
+                quantized_t = quantized.transpose(2,1)
+                x = quantized_t
+                x = self.conv1(x)
+                x = self.bn1(x)
+                x = self.relu(x)
+                x = self.maxpool(x)
+                x = self.layer1(x)
+                x = self.layer2(x)
+                x = self.layer3(x)
+                x = self.layer4(x)
+                x1 = self.adaptiveavgpool(x)
+                x2 = self.adaptivemaxpool(x)
+                x = torch.cat((x1, x2), dim=1)
+                x = x.view(x.size(0), -1)
+                x = self.fc(x)
+                
+                x = x.cpu().detach().numpy()
+                #decode indices
+                x_recon = self.vae.indices_to_recon(original)
+                x_recon = x_recon.cpu().detach().numpy()        
+
+                recon = x_recon if recon is None else np.concatenate((recon, x_recon), axis=0)
+                result = x if result is None else np.concatenate((result, x), axis=0)
+                
+        return result, recon
+
+    def forward(self, img):  
+
+        if self.auc_classification_eval or self.auc_classification_eval2:
+            #create a mask tensor
+            tmp = torch.zeros(img.shape, device=device)
+            
+            new_tensor = tmp
+            
+            for i in range(len(self.positions)):
+                new_tensor[:,:,self.positions[i]] = img[:,:,self.positions[i]] 
+            
+            img = new_tensor
+        
+            
+        else:
+            pass
+        
+        x = img.float()
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x1 = self.adaptiveavgpool(x)
+        x2 = self.adaptivemaxpool(x)
+        x = torch.cat((x1, x2), dim=1)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        x = torch.sigmoid(x)
+
+        return x, 0,0, img
+
 
 def resnet18(**kwargs):
     model = ResNet1d(BasicBlock1d, [2, 2, 2, 2], **kwargs)
@@ -498,6 +869,10 @@ def resnet18(**kwargs):
 
 def resnet34(**kwargs):
     model = ResNet1d(BasicBlock1d, [3, 4, 6, 3], **kwargs)
+    return model
+
+def resnet34_raw(**kwargs):
+    model = ResNet1d_raw(BasicBlock1d, [3, 4, 6, 3], **kwargs)
     return model
 
 #Positional Encoding 

@@ -18,11 +18,11 @@ from data import load_data
 import sklearn 
 import scikitplot as skplt
 from dataload import makedata
-from models import resnet18, resnet34
+from models import resnet18, resnet34, resnet34_raw
 torch.set_num_threads(32)
 torch.manual_seed(911) 
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 #Trainer
 class ClassifierTrainer():
     def __init__(self, args):
@@ -191,15 +191,15 @@ class ClassifierTrainer():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser() 
     #Model Configuration
-    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb/8/resnet.pt")
-    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/ptb/8/model_110.pt")  
+    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/toy_dataset/8/resnet.pt")
+    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/toy_dataset/8/model_2170.pt") 
     parser.add_argument('--batch_size', type=int, default=256)
-    parser.add_argument('--lr', type=float, default=2e-4)
+    parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--n_epochs', type=int, default=3000)
     parser.add_argument('--n_emb', type=int, default=64)
-    parser.add_argument('--mode', type=str, default='test', choices=['test', 'train'])
+    parser.add_argument('--mode', type=str, default='train', choices=['test', 'train'])
     parser.add_argument('--task', type=str, default='classification', help="Task being done")
-    parser.add_argument('--dataset', type=str, default='ptb', help="Dataset to train on")
+    parser.add_argument('--dataset', type=str, default='toy_dataset', help="Dataset to train on")
     parser.add_argument('--auc_classification', type=bool, default=False)
     parser.add_argument('--model_type', type=str, default="resnet")
     parser.add_argument('--num_classes', type=int, default=1)
@@ -226,7 +226,16 @@ if __name__ == '__main__':
             model_type = args.model_type,
             len_position = args.len_position
         ).to(device)
-    
+    elif args.model_type == "raw":
+        net = resnet34_raw(
+            num_classes = args.num_classes,
+            vqvae_model = args.vqvae_model,
+            positions = args.positions,
+            mask = args.mask,
+            auc_classification = args.auc_classification,
+            model_type = args.model_type,
+            len_position = args.len_position
+        ).to(device)
     else:
         net = VQ_Classifier(
             num_classes = args.num_classes,

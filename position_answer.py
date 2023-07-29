@@ -21,25 +21,25 @@ import copy
 import warnings
 from dataload import makedata
 from classifier import ClassifierTrainer
-from models import VQ_Classifier, resnet34
+from models import VQ_Classifier, resnet34, resnet34_raw
 import itertools
 from data import load_data
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 torch.set_num_threads(32) 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-torch.manual_seed(112)
+torch.manual_seed(911)
 
 if __name__ =='__main__':
     parser =argparse.ArgumentParser()
     parser.add_argument('--labels', type=int, default=1)
 
-    parser.add_argument('--batch_size', type=int, default=80)
-    parser.add_argument('--dataset', type=str, default="ptb")
+    parser.add_argument('--batch_size', type=int, default=96)
+    parser.add_argument('--dataset', type=str, default="toy_dataset")
     parser.add_argument('--num_classes', type=int, default=1)
-    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb/8/resnet.pt")
-    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/ptb/8/model_110.pt")
-    parser.add_argument('--model_type',type =str,default='resnet', help='cnn_transformer, transformer, cnn, resnet')
+    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/toy_dataset/8/resnet.pt")
+    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/toy_dataset/8/model_2170.pt") 
+    parser.add_argument('--model_type',type =str,default='resnet', help='cnn_transformer, transformer, cnn, resnet, raw')
     parser.add_argument('--device', type =str,default='3')
     parser.add_argument('--auc_classification', type=bool, default=False)
     parser.add_argument('--len_position', type=int, default=12)
@@ -99,6 +99,21 @@ if __name__ =='__main__':
         model_type = classifier,
         len_position = len_position
         ).to(device)
+        
+    elif args.model_type == "raw":
+        net = resnet34_raw(
+            num_classes = args.num_classes,
+            vqvae_model = args.vqvae_model,
+            positions = args.positions,
+            mask = args.mask,
+            auc_classification = args.auc_classification,
+            model_type = args.model_type,
+            len_position = args.len_position
+        ).to(device)
+
+        for param in net.parameters():
+            param.requires_grad = False
+        
     else:
         net = VQ_Classifier(
             num_classes = args.num_classes,
@@ -152,7 +167,7 @@ if __name__ =='__main__':
                 #combined metric 
                 combined_selected_position = int(torch.argmax(insertion_combined_scores - deletion_combined_scores))
                 assert insertion_combinations == deletion_combinations
-                combined_selected_positions.append(insertion_combinations[combined_selected_position])
+                combined_selected_positions.append(int(insertion_combinations[combined_selected_position][0]))
                 
                 #change both insertion and deletion selected positions to combined 
                 insertion_selected_positions = list(combined_selected_positions)
@@ -160,3 +175,4 @@ if __name__ =='__main__':
                 
     
     print(combined_selected_positions)
+    
