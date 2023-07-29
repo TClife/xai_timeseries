@@ -17,7 +17,7 @@ import numpy as np
 import os 
 from tqdm import tqdm
 import sklearn
-from x_transformers import TransformerWrapper, Encoder
+#from x_transformers import TransformerWrapper, Encoder
 import itertools
 
 torch.set_num_threads(32)
@@ -418,7 +418,7 @@ class VQ_Classifier(nn.Module):
         vae_path = vqvae_model
         load_dict = torch.load(vae_path)["model_state_dict"]
         self.args= torch.load(vae_path)["args"]
-
+        print("self.args", self.args)
         #vqvae model
         self.vae = Residual_VQVAE(image_size=self.args.ecg_size-16, num_layers=self.args.num_layers, num_tokens=self.args.num_tokens, 
                                   codebook_dim=self.args.codebook_dim, hidden_dim=self.args.hidden_dim, num_resnet_blocks=self.args.num_resnet_blocks, 

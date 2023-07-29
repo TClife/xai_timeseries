@@ -143,7 +143,7 @@ class ClassifierTrainer():
                 fpr, tpr, thresholds = sklearn.metrics.roc_curve(labels.cpu(), output.cpu())
                 score = sklearn.metrics.roc_auc_score(labels.cpu(), output.cpu())
                 total_score.append(score)
-                print(score)
+                print(output, labels)
             
                 total_fpr.append(fpr)
                 total_tpr.append(tpr)
@@ -154,7 +154,7 @@ class ClassifierTrainer():
                 total_data.append(data)
                 total_recon.append(recon)
                 total_tokens.append(codebook_tokens)
-
+                '''
                 skplt.metrics.plot_roc_curve(labels.cpu(), output.cpu())
                 plt.ylabel('True Positive Rate')
                 plt.xlabel('False Positive Rate')
@@ -164,7 +164,7 @@ class ClassifierTrainer():
                 skplt.metrics.plot_precision_recall_curve(labels.cpu(), output.cpu())
                 plt.savefig('precision_recall.png')
                 plt.clf()
-            
+            '''
             print("final test score: ", np.mean(total_score))
             total_input = torch.vstack(total_input)
             total_output = torch.vstack(total_output)
@@ -191,13 +191,13 @@ class ClassifierTrainer():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser() 
     #Model Configuration
-    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb/8/resnet.pt")
-    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/ptb/8/model_110.pt")  
+    parser.add_argument('--classification_model', type=str, default="/home/smjo/xai_timeseries/classification_models/toydata3/8/resnet.pt")
+    parser.add_argument('--vqvae_model', default = "/home/smjo/xai_timeseries/saved_models/toydata3/8/model_300.pt")  
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=2e-4)
     parser.add_argument('--n_epochs', type=int, default=3000)
     parser.add_argument('--n_emb', type=int, default=64)
-    parser.add_argument('--mode', type=str, default='test', choices=['test', 'train'])
+    parser.add_argument('--mode', type=str, default='train', choices=['test', 'train'])
     parser.add_argument('--task', type=str, default='classification', help="Task being done")
     parser.add_argument('--dataset', type=str, default='ptb', help="Dataset to train on")
     parser.add_argument('--auc_classification', type=bool, default=False)
@@ -207,6 +207,7 @@ if __name__ == '__main__':
     parser.add_argument('--mask', type=int, default=0)
     parser.add_argument('--len_position', type=int, default=12)
     parser.add_argument('--num_quantizers', type=int, default=8)
+    parser.add_argument('--domain', type=str, default='time', help='time or frequency')
 
     #directories 
     parser.add_argument('--savedir', type=str, default="./classification_models")
@@ -215,36 +216,41 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     classifier_train = ClassifierTrainer(args)
+    if args.domain == 'time':
+        if args.model_type == "resnet":
+            net = resnet34(
+                num_classes = args.num_classes,
+                vqvae_model = args.vqvae_model,
+                positions = args.positions,
+                mask = args.mask,
+                auc_classification = args.auc_classification,
+                model_type = args.model_type,
+                len_position = args.len_position
+            ).to(device)
+        
+        else:
+            net = VQ_Classifier(
+                num_classes = args.num_classes,
+                vqvae_model = args.vqvae_model,
+                positions = args.positions,
+                mask = args.mask,
+                auc_classification = args.auc_classification,
+                model_type = args.model_type,
+                len_position = args.len_position
+            ).to(device)
 
-    if args.model_type == "resnet":
-        net = resnet34(
-            num_classes = args.num_classes,
-            vqvae_model = args.vqvae_model,
-            positions = args.positions,
-            mask = args.mask,
-            auc_classification = args.auc_classification,
-            model_type = args.model_type,
-            len_position = args.len_position
-        ).to(device)
-    
+        if args.mode == "train":
+            wandb.login()
+            wandb.init()
+            classifier_train.train(net)
+        
+        if args.mode =="test":
+            classifier_train.test(net)
     else:
-        net = VQ_Classifier(
-            num_classes = args.num_classes,
-            vqvae_model = args.vqvae_model,
-            positions = args.positions,
-            mask = args.mask,
-            auc_classification = args.auc_classification,
-            model_type = args.model_type,
-            len_position = args.len_position
-        ).to(device)
-
-    if args.mode == "train":
-        wandb.login()
-        wandb.init()
-        classifier_train.train(net)
-    
-    if args.mode =="test":
-        classifier_train.test(net)
+        if args.model_type == 'resnet':
+            net = resnet34(
+                
+            )
 
         
 

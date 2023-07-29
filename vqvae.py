@@ -140,8 +140,8 @@ class VQTrainer():
         self.model.eval()
         test_epoch_mse= 0.0
 
-        for j,(data,_) in enumerate(self.test_loader):
-            data = data.to(device).unsqueeze(1)
+        for j,(data,label) in enumerate(self.test_loader):
+            data = data.to(device).unsqueeze(1)    
             data = data.float()
             data_recon, recon_error, commit_loss, indices, _ = self.model(data)
             loss = recon_error
@@ -190,7 +190,7 @@ if __name__ == '__main__':
     
 
     #test
-    parser.add_argument('--load_model', type=str, default="/home/smjo/xai_timeseries/vqvae/saved_models/hard_mitbih/1/model_280.pt", help="Trained VQ-VAE Path")
+    parser.add_argument('--load_model', type=str, default="/home/smjo/xai_timeseries/saved_models/toydata3/8/model_240.pt", help="Trained VQ-VAE Path")
 
     parser.add_argument('--decode', type=bool, default=False, help="Decode from latent space")
     

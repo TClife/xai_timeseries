@@ -5,7 +5,7 @@ import torch.nn.functional as F
 torch.set_num_threads(32) 
 torch.manual_seed(911)
 
-def load_data(data_name, task):
+def load_data(data_name, task, domain=None):
     print(f"task is {task}")
     print(f"dataset is {data_name}")
     if task == 'vqvae':
@@ -54,18 +54,18 @@ def load_data(data_name, task):
             
         elif data_name=='mitbih':
             #data
-            n_set = torch.tensor(torch.load('./data/mit_bih_dataset/n_data.pt'))
-            s_set = torch.tensor(torch.load('./data/mit_bih_dataset/s_data.pt'))
-            v_set = torch.tensor(torch.load('./data/mit_bih_dataset/v_data.pt'))
-            f_set = torch.tensor(torch.load('./data/mit_bih_dataset/f_data.pt'))
-            q_set = torch.tensor(torch.load('./data/mit_bih_dataset/q_data.pt'))
+            n_set = torch.tensor(torch.load('./mit_bih_dataset/n_data.pt'))
+            s_set = torch.tensor(torch.load('./mit_bih_dataset/s_data.pt'))
+            v_set = torch.tensor(torch.load('./mit_bih_dataset/v_data.pt'))
+            f_set = torch.tensor(torch.load('./mit_bih_dataset/f_data.pt'))
+            q_set = torch.tensor(torch.load('./mit_bih_dataset/q_data.pt'))
             
             #labels
-            n_label = torch.tensor(torch.load('./data/mit_bih_dataset/n_labels.pt'))
-            s_label = torch.tensor(torch.load('./data/mit_bih_dataset/s_labels.pt'))
-            v_label = torch.tensor(torch.load('./data/mit_bih_dataset/v_labels.pt'))
-            f_label = torch.tensor(torch.load('./data/mit_bih_dataset/f_labels.pt'))
-            q_label = torch.tensor(torch.load('./data/mit_bih_dataset/q_labels.pt'))
+            n_label = torch.tensor(torch.load('./mit_bih_dataset/n_labels.pt'))
+            s_label = torch.tensor(torch.load('./mit_bih_dataset/s_labels.pt'))
+            v_label = torch.tensor(torch.load('./mit_bih_dataset/v_labels.pt'))
+            f_label = torch.tensor(torch.load('./mit_bih_dataset/f_labels.pt'))
+            q_label = torch.tensor(torch.load('./mit_bih_dataset/q_labels.pt'))
 
             data = torch.cat((n_set,s_set,v_set,f_set,q_set), dim=0)
             labels = torch.cat((n_label,s_label,v_label,f_label,q_label), dim=0)
@@ -73,7 +73,16 @@ def load_data(data_name, task):
             #Zero Padding  
             padding=(0,16)
             data = F.pad(data,padding,"constant",0)
+        
+        elif data_name=='toydata3':
+            class0_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class0.pt')
+            class1_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class1.pt')
+            class0_label = torch.zeros(len(class0_data))
+            class1_label = torch.ones(len(class1_data))
             
+            data = torch.cat((class0_data,class1_data), dim=0)
+            labels = torch.cat((class0_label, class1_label), dim=0)
+        
         else:
             print("Wrong data name")
             
@@ -117,20 +126,37 @@ def load_data(data_name, task):
             
             #Zero Padding already done (make sure to erase zero-padding region during classification, xai)
             
+            
+        elif data_name=='toydata3':
+            if domain=='frequency':
+                class0_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class0_freq.pt')
+                class1_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class1_freq.pt')
+                data = torch.cat((class0_data,class1_data), dim=0)[:,:96]
+            else:
+                class0_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class0.pt')
+                class1_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class1.pt')
+                data = torch.cat((class0_data,class1_data), dim=0)[:,:192]
+            
+            class0_label = torch.zeros(len(class0_data))
+            class1_label = torch.ones(len(class1_data))
+        
+            labels = torch.cat((class0_label, class1_label), dim=0)
+            
         elif data_name=='mitbih':
             #data
-            n_set = torch.tensor(torch.load('./data/mit_bih_dataset/n_data.pt'))
-            s_set = torch.tensor(torch.load('./data/mit_bih_dataset/s_data.pt'))
-            v_set = torch.tensor(torch.load('./data/mit_bih_dataset/v_data.pt'))
-            f_set = torch.tensor(torch.load('./data/mit_bih_dataset/f_data.pt'))
-            q_set = torch.tensor(torch.load('./data/mit_bih_dataset/q_data.pt'))
+            mit_path = "/home/hschung/xai/xai_timeseries/data/mit_bih_dataset/"
+            n_set = torch.tensor(torch.load(mit_path + 'n_data.pt'))
+            s_set = torch.tensor(torch.load(mit_path + 's_data.pt'))
+            v_set = torch.tensor(torch.load(mit_path + 'v_data.pt'))[:400]
+            f_set = torch.tensor(torch.load(mit_path + 'f_data.pt'))[:400]
+            q_set = torch.tensor(torch.load(mit_path + 'q_data.pt'))[:400]
             
             #labels
-            n_label = torch.tensor(torch.load('./data/mit_bih_dataset/n_labels.pt'))
-            s_label = torch.tensor(torch.load('./data/mit_bih_dataset/s_labels.pt'))
-            v_label = torch.tensor(torch.load('./data/mit_bih_dataset/v_labels.pt'))-2
-            f_label = torch.tensor(torch.load('./data/mit_bih_dataset/f_labels.pt'))-2
-            q_label = torch.tensor(torch.load('./data/mit_bih_dataset/q_labels.pt'))-3
+            n_label = torch.tensor(torch.load(mit_path + 'n_labels.pt'))
+            s_label = torch.tensor(torch.load(mit_path + 's_labels.pt'))
+            v_label = torch.tensor(torch.load(mit_path + 'v_labels.pt'))[:400]-2
+            f_label = torch.tensor(torch.load(mit_path + 'f_labels.pt'))[:400]-2
+            q_label = torch.tensor(torch.load(mit_path + 'q_labels.pt'))[:400]-3
 
             data = torch.cat((v_set,q_set), dim=0)
             labels = torch.cat((v_label,q_label), dim=0)
@@ -177,6 +203,14 @@ def load_data(data_name, task):
             labels = torch.cat((class0_label, class1_label), dim=0)
             
             #Zero Padding already done (make sure to erase zero-padding region during classification, xai)
+        elif data_name=='peak':
+            class0_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class0.pt')
+            class1_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class1.pt')
+            class0_label = torch.zeros(len(class0_data))
+            class1_label = torch.ones(len(class1_data))
+            
+            data = torch.cat((class0_data,class1_data), dim=0)
+            labels = torch.cat((class0_label, class1_label), dim=0)
             
         elif data_name=='mitbih':
             #data
@@ -197,13 +231,28 @@ def load_data(data_name, task):
             data = torch.cat((v_set,q_set), dim=0)
             labels = torch.cat((v_label,q_label), dim=0)
             
+        elif data_name=='toydata3':
+            if domain=='frequency':
+                class0_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class0_freq.pt')
+                class1_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class1_freq.pt')
+                data = torch.cat((class0_data,class1_data), dim=0)[:,:96]
+            else:
+                class0_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class0.pt')
+                class1_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class1.pt')
+                data = torch.cat((class0_data,class1_data), dim=0)[:,:192]
+            
+            class0_label = torch.zeros(len(class0_data))
+            class1_label = torch.ones(len(class1_data))
+        
+            labels = torch.cat((class0_label, class1_label), dim=0)
+            
         else:
             print("Wrong data name")    
 
         #Binary classification 
         # labels = F.one_hot(labels.long())
     
-    print(f"X shape:{data.shape}, y shape:{labels.shape}")
+        print(f"X shape:{data.shape}, y shape:{labels.shape}")
     
     class ECGDataset(Dataset):
             def __init__(self, data, labels):
