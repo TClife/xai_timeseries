@@ -10,6 +10,7 @@ pip install matplotlib
 pip install wandb
 pip install scikit-learn
 pip install scikit-plot
+pip install tqdm
 ```
 use vqvae.py for training and testing 
 use --num_quantizers to change number of vq-vae quantizers (1 == vq-vae, greater than 2 == residual vq)
