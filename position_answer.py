@@ -35,10 +35,10 @@ if __name__ =='__main__':
     parser.add_argument('--labels', type=int, default=1)
 
     parser.add_argument('--batch_size', type=int, default=96)
-    parser.add_argument('--dataset', type=str, default="toy_dataset")
+    parser.add_argument('--dataset', type=str, default="toydata3")
     parser.add_argument('--num_classes', type=int, default=1)
-    parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/toy_dataset/8/resnet.pt")
-    parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/toy_dataset/8/model_2170.pt") 
+    parser.add_argument('--classification_model', type=str, default="/home/smjo/xai_timeseries/classification_models/toydata3/8/resnet.pt")
+    parser.add_argument('--vqvae_model', default = "/home/smjo/xai_timeseries/saved_models/toydata3/8/model_300.pt") 
     parser.add_argument('--model_type',type =str,default='resnet', help='cnn_transformer, transformer, cnn, resnet, raw')
     parser.add_argument('--device', type =str,default='3')
     parser.add_argument('--auc_classification', type=bool, default=False)

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 torch.set_num_threads(32) 
 torch.manual_seed(911)
 
-def load_data(data_name, task, domain=None):
+def load_data(data_name, task,set, domain=None):
     print(f"task is {task}")
     print(f"dataset is {data_name}")
     if task == 'vqvae':
@@ -87,55 +87,57 @@ def load_data(data_name, task, domain=None):
             print("Wrong data name")
             
     elif task == 'classification':
-        if data_name=='ptb':
-            class0_pth = './data/ptbdb_normal.csv'
-            class1_pth = './data/ptbdb_abnormal.csv'
-            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)[:400, :187]
-            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)[:400, :187]
+            
+            #Zero Padding already done (make sure to erase zero-padding region during classification, xai)  
+        if data_name=='toydata':
+            class0_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset/time_domain_class0.csv').values)
+            class1_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset/time_domain_class1.csv').values)
+            data = torch.cat([class0_data,class1_data], dim=0)[:,:192]
+            
             class0_label = torch.zeros(len(class0_data))
             class1_label = torch.ones(len(class1_data))
-
-            data = torch.cat((class0_data,class1_data), dim=0)
-            labels = torch.cat((class0_label, class1_label), dim=0)
-            
-            #Zero Padding        
-            padding = (0, 5)
-            data = F.pad(data, padding, "constant", 0)
-            
-        elif data_name=='flat':
-            class0_pth = "./data/amplitude_class0.csv"
-            class1_pth = "./data/amplitude_class1.csv"
-            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)
-            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)
-            class0_label = torch.zeros(len(class0_data))
-            class1_label = torch.ones(len(class1_data))
-            
-            data = torch.cat((class0_data,class1_data), dim=0)
-            labels = torch.cat((class0_label, class1_label), dim=0)
         
-        elif data_name=='peak':
-            class0_pth = './data/class0.csv'
-            class1_pth = './data/class1.csv'
-            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)[:400]
-            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)[:400]
-            class0_label = torch.zeros(len(class0_data))
-            class1_label = torch.ones(len(class1_data))
-            
-            data = torch.cat((class0_data,class1_data), dim=0)[:,:192]
             labels = torch.cat((class0_label, class1_label), dim=0)
             
-            #Zero Padding already done (make sure to erase zero-padding region during classification, xai)
+        
+        elif data_name=='toydata2':
+            if set=='train':
+                class0_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset2/train_random_dataset_class1.csv').values)
+                class1_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset2/train_random_dataset_class2.csv').values)
+                data = torch.cat([class0_data,class1_data], dim=0)[:,:192]
+                
+                class0_label = torch.zeros(len(class0_data))
+                class1_label= torch.ones(len(class1_data))
+            
+                labels = torch.cat((class0_label, class1_label), dim=0)
+            
+            elif set=='test':
+            
+                class0_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset2/test_random_dataset_class1.csv').values)
+                class1_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset2/test_random_dataset_class2.csv').values)
+                data = torch.cat([class0_data,class1_data], dim=0)[:,:192]
+                
+                class0_label = torch.zeros(len(class0_data))
+                class1_label = torch.ones(len(class1_data))
+            
+                labels = torch.cat((class0_label, class1_label), dim=0)
+            else:
+                class0_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset2/val_random_dataset_class1.csv').values)
+                class1_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset2/val_random_dataset_class2.csv').values)
+                data = torch.cat([class0_data,class1_data], dim=0)[:,:192]
+                
+                class0_label = torch.zeros(len(class0_data))
+                class1_label = torch.ones(len(class1_data))
+            
+                labels = torch.cat((class0_label, class1_label), dim=0)
+            
+            
             
             
         elif data_name=='toydata3':
-            if domain=='frequency':
-                class0_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class0_freq.pt')
-                class1_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class1_freq.pt')
-                data = torch.cat((class0_data,class1_data), dim=0)[:,:96]
-            else:
-                class0_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class0.pt')
-                class1_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class1.pt')
-                data = torch.cat((class0_data,class1_data), dim=0)[:,:192]
+            class0_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset3/toy_dataset3_class0.csv').values)
+            class1_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset3/toy_dataset3_class1.csv').values)
+            data = torch.cat([class0_data,class1_data], dim=0)[:,:192]
             
             class0_label = torch.zeros(len(class0_data))
             class1_label = torch.ones(len(class1_data))
@@ -165,54 +167,9 @@ def load_data(data_name, task, domain=None):
         # labels = F.one_hot(labels.long())
             
     elif task == "xai":
-        if data_name=='ptb':
-            class0_pth = './data/ptbdb_normal.csv'
-            class1_pth = './data/ptbdb_abnormal.csv'
-            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)[:400, :187]
-            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)[:400, :187]
-            class0_label = torch.zeros(len(class0_data))
-            class1_label = torch.ones(len(class1_data))
-
-            data = torch.cat((class0_data,class1_data), dim=0)
-            labels = torch.cat((class0_label, class1_label), dim=0)
-            
-            #Zero Padding        
-            padding = (0, 5)
-            data = F.pad(data, padding, "constant", 0)
-            
-        elif data_name=='flat':
-            class0_pth = "./data/amplitude_class0.csv"
-            class1_pth = "./data/amplitude_class1.csv"
-            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)
-            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)
-            class0_label = torch.zeros(len(class0_data))
-            class1_label = torch.ones(len(class1_data))
-            
-            data = torch.cat((class0_data,class1_data), dim=0)
-            labels = torch.cat((class0_label, class1_label), dim=0)
         
-        elif data_name=='peak':
-            class0_pth = './data/class0.csv'
-            class1_pth = './data/class1.csv'
-            class0_data = torch.tensor(pd.read_csv(class0_pth,skiprows=0).values)[:400]
-            class1_data = torch.tensor(pd.read_csv(class1_pth,skiprows=0).values)[:400]
-            class0_label = torch.zeros(len(class0_data))
-            class1_label = torch.ones(len(class1_data))
             
-            data = torch.cat((class0_data,class1_data), dim=0)[:,:192]
-            labels = torch.cat((class0_label, class1_label), dim=0)
-            
-            #Zero Padding already done (make sure to erase zero-padding region during classification, xai)
-        elif data_name=='peak':
-            class0_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class0.pt')
-            class1_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class1.pt')
-            class0_label = torch.zeros(len(class0_data))
-            class1_label = torch.ones(len(class1_data))
-            
-            data = torch.cat((class0_data,class1_data), dim=0)
-            labels = torch.cat((class0_label, class1_label), dim=0)
-            
-        elif data_name=='mitbih':
+        if data_name=='mitbih':
             #data
             mit_path = "/home/hschung/xai/xai_timeseries/data/mit_bih_dataset/"
             n_set = torch.tensor(torch.load(mit_path + 'n_data.pt'))
@@ -231,18 +188,55 @@ def load_data(data_name, task, domain=None):
             data = torch.cat((v_set,q_set), dim=0)
             labels = torch.cat((v_label,q_label), dim=0)
             
-        elif data_name=='toydata3':
-            if domain=='frequency':
-                class0_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class0_freq.pt')
-                class1_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class1_freq.pt')
-                data = torch.cat((class0_data,class1_data), dim=0)[:,:96]
-            else:
-                class0_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class0.pt')
-                class1_data = torch.load('/home/smjo/xai_timeseries/data/toydata3_class1.pt')
-                data = torch.cat((class0_data,class1_data), dim=0)[:,:192]
+        elif data_name=='toydata':
+            class0_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset/time_domain_class0.csv').values)
+            class1_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset/time_domain_class1.csv').values)
+            data = torch.cat([class0_data,class1_data], dim=0)[:,:192]
             
-            class0_label = torch.zeros(len(class0_data))
-            class1_label = torch.ones(len(class1_data))
+            class0_label = torch.stack((torch.ones(len(class0_data)), torch.zeros(len(class0_data))),dim=1)
+            class1_label = torch.stack((torch.zeros(len(class1_data)), torch.ones(len(class1_data))),dim=1)
+        
+            labels = torch.cat((class0_label, class1_label), dim=0)
+            
+        elif data_name=='toydata2':
+            if set=='train':
+                class0_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset2/train_random_dataset_class1.csv').values)
+                class1_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset2/train_random_dataset_class2.csv').values)
+                data = torch.cat([class0_data,class1_data], dim=0)[:,:192]
+                
+                class0_label = torch.stack((torch.ones(len(class0_data)), torch.zeros(len(class0_data))),dim=1)
+                class1_label = torch.stack((torch.zeros(len(class1_data)), torch.ones(len(class1_data))),dim=1)
+            
+                labels = torch.cat((class0_label, class1_label), dim=0)
+            
+            elif set=='test':
+            
+                class0_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset2/test_random_dataset_class1.csv').values)
+                class1_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset2/test_random_dataset_class2.csv').values)
+                data = torch.cat([class0_data,class1_data], dim=0)[:,:192]
+                
+                class0_label = torch.stack((torch.ones(len(class0_data)), torch.zeros(len(class0_data))),dim=1)
+                class1_label = torch.stack((torch.zeros(len(class1_data)), torch.ones(len(class1_data))),dim=1)
+            
+                labels = torch.cat((class0_label, class1_label), dim=0)
+            else:
+                class0_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset2/val_random_dataset_class1.csv').values)
+                class1_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset2/val_random_dataset_class2.csv').values)
+                data = torch.cat([class0_data,class1_data], dim=0)[:,:192]
+                
+                class0_label = torch.stack((torch.ones(len(class0_data)), torch.zeros(len(class0_data))),dim=1)
+                class1_label = torch.stack((torch.zeros(len(class1_data)), torch.ones(len(class1_data))),dim=1)
+            
+                labels = torch.cat((class0_label, class1_label), dim=0)
+            
+        elif data_name=='toydata3':
+            class0_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset3/toy_dataset3_class0.csv').values)
+            class1_data = torch.tensor(pd.read_csv('/home/smjo/xai_timeseries/data/toy_dataset3/toy_dataset3_class1.csv').values)
+            data = torch.cat([class0_data,class1_data], dim=0)[:,:192] 
+
+            
+            class0_label = torch.stack((torch.ones(len(class0_data)), torch.zeros(len(class0_data))),dim=1)
+            class1_label = torch.stack((torch.zeros(len(class1_data)), torch.ones(len(class1_data))),dim=1)
         
             labels = torch.cat((class0_label, class1_label), dim=0)
             
@@ -264,8 +258,12 @@ def load_data(data_name, task, domain=None):
 
             def __getitem__(self, idx):
                 return self.data[idx], self.labels[idx]
+    
             
     ds = ECGDataset(data, labels)
+    
+    
+        
  
     return ds
 

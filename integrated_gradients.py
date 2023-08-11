@@ -16,10 +16,10 @@ parser = ArgumentParser()
 parser.add_argument('--labels', type=int, default=0)
 parser.add_argument('--num_features', type=int, default=2)
 parser.add_argument('--batch_size', type=int, default=256)
-parser.add_argument('--vqvae_model', default = "/home/hschung/xai/xai_timeseries/saved_models/ptb/8/model_110.pt")
-parser.add_argument('--classification_model', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/ptb/8/resnet.pt")
+parser.add_argument('--vqvae_model', default = "/home/smjo/xai_timeseries/saved_models/toydata3/8/model_300.pt")
+parser.add_argument('--classification_model', type=str, default="/home/smjo/xai_timeseries/classification_models/toydata3/8/resnet.pt")
 parser.add_argument('--task', type=str, default='xai', help="Task being done")
-parser.add_argument('--dataset', type=str, default="ptb")
+parser.add_argument('--dataset', type=str, default="toydata3")
 parser.add_argument('--plot_dataset', type=bool, default=True)
 parser.add_argument('--model_type', type=str, default="resnet")
 parser.add_argument('--auc_classification', type=bool, default=False)
@@ -92,8 +92,8 @@ for i in range(len(masked_regions)):
     baseline_tokens[:,:,i] = masked_regions[i]
     
 baseline_tokens = baseline_tokens.to(device)
-print(f'original input: {codebook_tokens}')
-print(f'baseline input: {baseline_tokens}')
+#print(f'original input: {codebook_tokens}')
+#print(f'baseline input: {baseline_tokens}')
 
 #Compute attributions 
 attributions, delta = lig.attribute(inputs = codebook_tokens, baselines = baseline_tokens, return_convergence_delta=True)
@@ -108,7 +108,7 @@ def summarize_attributions(attributions):
     return attributions
 
 attributions_sum = summarize_attributions(attributions) #[1, 6, 768] -> [6]
-print(attributions_sum.size())
+#print(attributions_sum.size())
 print(attributions_sum)
 
 #find top-2 max values and indices 
@@ -118,5 +118,7 @@ top_2_values, top_2_indices = torch.topk(attributions_sum, 2, dim=1) #top-2 valu
 from collections import Counter
 top_indices = [int(item) for sublist in top_2_indices for item in sublist]
 count = Counter(top_indices).most_common()
-
+count2 = Counter(top_indices)
 print(f'Final Count: {count}')
+print(f"count:{count2}")
+print(f"top_indices:{top_indices}")

@@ -22,7 +22,7 @@ from models import resnet18, resnet34, resnet34_raw
 torch.set_num_threads(32)
 torch.manual_seed(911) 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+wandb.init(project="residual_VQVAE classificaation", reinit=True)
 #Trainer
 class ClassifierTrainer():
     def __init__(self, args):
@@ -193,7 +193,7 @@ if __name__ == '__main__':
     #Model Configuration
 
     parser.add_argument('--classification_model', type=str, default="/home/smjo/xai_timeseries/classification_models/toydata3/8/resnet.pt")
-    parser.add_argument('--vqvae_model', default = "/home/smjo/xai_timeseries/saved_models/toydata3/8/model_300.pt")  
+    parser.add_argument('--vqvae_model', default = "/home/smjo/xai_timeseries/saved_models/toydata3/8/model_280.pt")  
 
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
@@ -218,7 +218,29 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     classifier_train = ClassifierTrainer(args)
-    
+    if args.domain == 'time':
+        if args.model_type == "resnet":
+            net = resnet34(
+                num_classes = args.num_classes,
+                vqvae_model = args.vqvae_model,
+                positions = args.positions,
+                mask = args.mask,
+                auc_classification = args.auc_classification,
+                model_type = args.model_type,
+                len_position = args.len_position
+            ).to(device)
+        
+        else:
+            net = VQ_Classifier(
+                num_classes = args.num_classes,
+                vqvae_model = args.vqvae_model,
+                positions = args.positions,
+                mask = args.mask,
+                auc_classification = args.auc_classification,
+                model_type = args.model_type,
+                len_position = args.len_position
+            ).to(device)
+            
     if args.model_type == "resnet":
         net = resnet34(
             num_classes = args.num_classes,
@@ -229,20 +251,8 @@ if __name__ == '__main__':
             model_type = args.model_type,
             len_position = args.len_position
         ).to(device)
-        
     elif args.model_type == "raw":
         net = resnet34_raw(
-        num_classes = args.num_classes,
-        vqvae_model = args.vqvae_model,
-        positions = args.positions,
-        mask = args.mask,
-        auc_classification = args.auc_classification,
-        model_type = args.model_type,
-        len_position = args.len_position
-    ).to(device)
-    
-    else:
-        net = VQ_Classifier(
             num_classes = args.num_classes,
             vqvae_model = args.vqvae_model,
             positions = args.positions,
@@ -251,12 +261,20 @@ if __name__ == '__main__':
             model_type = args.model_type,
             len_position = args.len_position
         ).to(device)
-        
-    if args.mode =='train':
-        classifier_train.train(args)
+
     else:
-        classifier_train.test(args)
-        
+        if args.model_type == 'resnet':
+            net = resnet34(
+                
+            )
+            
+    if args.mode=='train':
+        classifier_train.train(net)
+    else:
+        classifier_train.test(net)
+    
+
+
 
 
 

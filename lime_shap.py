@@ -23,6 +23,7 @@ from collections import Counter
 from math import comb 
 from data import load_data
 from models import VQ_Classifier
+from models import resnet18, resnet34, resnet34_raw
 torch.set_num_threads(32) 
 torch.manual_seed(112)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -32,7 +33,10 @@ parser = ArgumentParser()
 parser.add_argument('--labels', type=int, default=0)
 parser.add_argument('--num_features', type=int, default=2)
 parser.add_argument('--batch_size', type=int, default=1)
-parser.add_argument('--vqvae_model', default = '/home/smjo/xai_timeseries/vqvae/saved_models/toydata3/8/model_290.pt' )
+parser.add_argument('--num_classes', type=int, default=1)
+parser.add_argument('--positions', type=int, default=0)
+parser.add_argument('--mask', type=int, default=0)
+parser.add_argument('--vqvae_model', default = '/home/smjo/xai_timeseries/saved_models/toydata3/8/model_290.pt')
 parser.add_argument('--classification_model', type=str, default='/home/smjo/xai_timeseries/classification_models/toydata3/8/resnet.pt')
 parser.add_argument('--task', type=str, default='xai', help="Task being done")
 parser.add_argument('--dataset', type=str, default="toydata3")
@@ -60,15 +64,29 @@ test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False
 classification_model = torch.load(args.classification_model)
 class_args = classification_model['args']
 #ECG Dataset
-net = VQ_Classifier(
-    num_classes = class_args.num_classes,
-    vqvae_model = class_args.vqvae_model,
-    positions = class_args.positions,
-    mask = class_args.mask,
-    auc_classification = args.auc_classification,
-    model_type = class_args.model_type,
-    len_position = args.len_position
-).to(device)
+
+
+if args.model_type == "resnet":
+    net = resnet34(
+        num_classes = args.num_classes,
+        vqvae_model = args.vqvae_model,
+        positions = args.positions,
+        mask = args.mask,
+        auc_classification = args.auc_classification,
+        model_type = args.model_type,
+        len_position = args.len_position
+    ).to(device)
+    
+else:
+    net = VQ_Classifier(
+        num_classes = class_args.num_classes,
+        vqvae_model = class_args.vqvae_model,
+        positions = class_args.positions,
+        mask = class_args.mask,
+        auc_classification = args.auc_classification,
+        model_type = class_args.model_type,
+        len_position = args.len_position
+    ).to(device)
 
 #load classification model
 net.load_state_dict(classification_model['model_state_dict'])
@@ -474,7 +492,7 @@ class LimeTimeSeriesExplainer(object):
         original_data = torch.stack(original_data)
 
         predictions, recons = net.predict(original_data)            
-        
+        print(f"predictions:{predictions.shape}")
         # create a flat representation for features
         perturbation_matrix = perturbation_matrix.reshape((num_samples, num_channels * num_slices)) #[5000, 72]
         distances = distance_fn(perturbation_matrix) #Cosine similarity of each perturb samples with respect to time_series [5000,]
@@ -570,7 +588,7 @@ for k, (data, labels) in enumerate(test_loader):
     net = net.to(device)
     data = data.unsqueeze(0).to(device)
     y_hat, codebook, data_recon,_ = net(data) #y_hat is logits, codebook is the codebook values, and emb is the embedded codebook values
-    # Explain ECG Dataset
+    # eoinst ECG Dataset
     num_features = args.num_features
     num_slices = codebook.shape[1]
     len_ts = data.shape[2]
