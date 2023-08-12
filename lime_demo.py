@@ -26,9 +26,10 @@ torch.manual_seed(911)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 parser = argparse.ArgumentParser() 
-parser.add_argument('--classification_model_pth', type=str, default="/home/smjo/xai_timeseries/classification_models/toydata2/time/resnet.pt")
-parser.add_argument('--dataset', type=str, choices=['toydata', 'toydata2', 'toydata3'])
-parser.add_argument('--num_slices', type=int, choices=[12,24,48,96])
+parser.add_argument('--classification_model_pth', type=str, default="/home/hschung/xai/xai_timeseries/classification_models/lime_resnet_toydata2/resnet.pt")
+parser.add_argument('--dataset', type=str, default="toydata2", choices=['toydata', 'toydata2', 'toydata3'])
+parser.add_argument('--num_slices', type=int, default=12, choices=[12,24,48,96])
+parser.add_argument('--topk', type=int, default=1, help="top number of values to include in count")
 args = parser.parse_args()
 batch_size=1
 
@@ -83,17 +84,15 @@ for k, (data, labels) in enumerate(test_loader):
     
     
 
-    explainer = LimeTimeSeriesExplainer(class_names =['Class0', 'Class1'])
+    explainer = LimeTimeSeriesExplainer(class_names =['Class1'])
     exp = explainer.explain_instance(data, net, num_features=num_slices, num_samples=5000, num_slices=num_slices,len_ts=192,
                                     replacement_method='total_mean')
-    max = -1e-10
-    top_important = 0
-    for i in range(num_slices):
-        feature, weight = exp.as_list()[i]
-        if weight >  max:
-            max = weight
-            top_important = feature
-    weight_dict[top_important] +=1
+
+    
+    topk = [exp.as_list()[i][0] for i in range(args.topk)]
+    
+    for i in range(len(topk)):
+        weight_dict[topk[i]] += 1
             
 
 position_rank = sorted(weight_dict.items(), key=lambda x:x[1], reverse=True)

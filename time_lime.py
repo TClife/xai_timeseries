@@ -40,7 +40,7 @@ class LimeTimeSeriesExplainer(object):
     """Explains time series classifiers."""
 
     def __init__(self,
-                 kernel_width=25,
+                 kernel_width=1,
                  verbose=False,
                  class_names=None,
                  feature_selection='auto',
@@ -71,7 +71,7 @@ class LimeTimeSeriesExplainer(object):
                          classifier_fn,
                          num_slices,
                          len_ts,
-                         labels=[0,1],
+                         labels=[1],
                          top_labels=None,
                          num_features=10,
                          num_samples=5000,
@@ -243,7 +243,7 @@ class LimeTimeSeriesExplainer(object):
             original_data.append(tmp_series)
         #predictions = classifier_fn(np.array(original_data))
         original_data = torch.stack(original_data).squeeze(1)
-        _,predictions,_,_,img  = classifier_fn(original_data)
+        predictions,_,_,_,img  = classifier_fn(original_data)
         predictions = predictions.cpu().numpy()
 
         perturbation_matrix = perturbation_matrix.reshape((num_samples, num_channels * num_slices))
@@ -258,7 +258,7 @@ def perturb_total_mean(m, start_idx, end_idx, channels):
         return
     
     for chan in channels:
-        m[chan][start_idx:end_idx] = m[chan].mean()
+        m[chan][chan][start_idx:end_idx] = m[chan][chan].mean()
         
 def perturb_zero(m, start_idx, end_idx, channels):
     if len(m.shape) == 1:
@@ -266,7 +266,7 @@ def perturb_zero(m, start_idx, end_idx, channels):
         return
     
     for chan in channels:
-        m[chan][start_idx:end_idx] = 0
+        m[chan][chan][start_idx:end_idx] = 0
 
 def perturb_mean(m, start_idx, end_idx, channels):
     # univariate
@@ -275,7 +275,7 @@ def perturb_mean(m, start_idx, end_idx, channels):
         return
     
     for chan in channels:
-        m[chan][start_idx:end_idx] = np.mean(m[chan][start_idx:end_idx])
+        m[chan][chan][start_idx:end_idx] = np.mean(m[chan][chan][start_idx:end_idx])
         
 def perturb_noise(m, start_idx, end_idx, channels):
     # univariate
@@ -285,7 +285,7 @@ def perturb_noise(m, start_idx, end_idx, channels):
         return
 
     for chan in channels:
-        m[chan][start_idx:end_idx] = np.random.uniform(m[chan].min(),
-                                                       m[chan].max(),
+        m[chan][start_idx:end_idx] = np.random.uniform(m[chan][chan].min(),
+                                                       m[chan][chan].max(),
                                                        end_idx - start_idx)
         
